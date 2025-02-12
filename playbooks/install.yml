@@ -17,7 +17,7 @@
       ansible.builtin.template:
         src: ../templates/full-cluster-install-config.j2.yaml
         dest: "{{ ocpfolder }}/install-config.yaml"
-    - name: Install ocp
+    - name: Install ocp cluster
       tags:
         - ocp_install
       ansible.builtin.shell: |

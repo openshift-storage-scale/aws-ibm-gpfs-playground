@@ -3,6 +3,12 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Not implemented yet
-      ansible.builtin.debug:
-        msg: "delete"
+    - name: Destroy ocp cluster
+      tags:
+        - ocp_destroy
+      ansible.builtin.shell: |
+        set -e
+        pwd
+        {{ basefolder }}/{{ ocp_version }}/oc help
+      args:
+        chdir: "{{ ocpfolder }}"
