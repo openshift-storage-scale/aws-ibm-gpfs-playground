@@ -1,0 +1,8 @@
+---
+- name: Destroy SNO cluster
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Not implemented yet
+      ansible.builtin.debug:
+        msg: "delete"

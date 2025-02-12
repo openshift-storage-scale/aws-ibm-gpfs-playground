@@ -1,0 +1,29 @@
+---
+- name: Playbook to create openshift cluster
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ./overrides.yml
+  tasks:
+    - name: Create working folder
+      ansible.builtin.file:
+        path: "{{ ocpfolder }}"
+        state: directory
+        recurse: true
+    - name: Template OCP install file
+      tags:
+        - ocp_install
+      ansible.builtin.template:
+        src: ../templates/full-cluster-install-config.j2.yaml
+        dest: "{{ ocpfolder }}/install-config.yaml"
+    - name: Install ocp
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        set -e
+        pwd
+        {{ basefolder }}/{{ ocp_version }}/oc help
+      args:
+        chdir: "{{ ocpfolder }}"
+

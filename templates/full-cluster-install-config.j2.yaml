@@ -1,0 +1,39 @@
+apiVersion: v1
+baseDomain: {{ ocp_domain }}
+compute:
+- architecture: {{ ocp_arch }}
+  hyperthreading: Enabled
+  name: worker
+  platform:
+    aws:
+      type: {{ ocp_worker_type }}
+      zones:
+       - {{ ocp_az }}
+  replicas: {{ ocp_worker_count }}
+controlPlane:
+  architecture: {{ ocp_arch }}
+  hyperthreading: Enabled
+  name: master
+  platform:
+    aws:
+      type: {{ ocp_master_type }}
+      zones:
+       - {{ ocp_az }}
+  replicas: {{ ocp_master_count }}
+metadata:
+  name: {{ ocp_cluster_name }}
+networking: 
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.0.0.0/16 
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  aws:
+    region: {{ ocp_region }}
+pullSecret: '{{ pullsecret | regex_replace('\'', '"') }}'
+sshKey: |
+  {{ ssh_pubkey | regex_replace('"', '') }}

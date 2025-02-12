@@ -1,0 +1,31 @@
+---
+# ocp_versions is only used by the ocp-mirror target to mirror locally all the versions and uncompress them *once*
+ocp_versions:
+  - "4.16.34"
+  - "4.17.16"
+  - "4.18.0-rc.8"
+
+# Default version to be used
+ocp_version: "4.17.16"
+
+ocp_domain: "aws.validatedpatterns.io"
+ocp_cluster_name: "gpfs-test"
+ocp_worker_count: 3
+ocp_worker_type: "m5.2xlarge"
+ocp_master_count: 3
+ocp_master_type: "m5.2xlarge"
+ocp_az: "eu-central-1a"
+ocp_region: "eu-central-1"
+ocp_arch: "amd64"
+
+ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
+ocp_maj_min_version_dashed: "{{ ocp_maj_min_version | replace('.', '-') }}"
+basefolder: "{{ '~/aws-gpfs-playground' | expanduser }}"
+ocpfolder: "{{ basefolder }}/ocp_install_files"
+tempfolder: "/tmp/aws-gpfs-temp-folder"
+openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp"
+sshkey: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+pullsecret: "{{ lookup('file', '~/.pullsecret.json') }}"
+ibmpullsecret: "{{ lookup('file', '~/.ibmpullsecret.json') }}"
+kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass') }}"
+ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"

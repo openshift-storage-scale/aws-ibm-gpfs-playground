@@ -1,0 +1,36 @@
+---
+- name: Fetch OCP versions
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ocp_url: https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/
+    ocp_tmp_file: /tmp/ocp-versions.html
+    major_versions:
+      - "4.12"
+      - "4.14"
+      - "4.15"
+      - "4.16"
+      - "4.17"
+      - "4.18"
+  tasks:
+    - name: Fetch URL
+      ansible.builtin.get_url:
+        url: "{{ ocp_url }}"
+        dest: "{{ ocp_tmp_file }}"
+        mode: "0644"
+
+    - name: Read file into var
+      ansible.builtin.shell: |
+        set -o pipefail
+        grep -E '<a href="[[:digit:]]+.[[:digit:]]+.[[:digit:]]+.*">' "{{ ocp_tmp_file }}" | \
+          sed -e 's/<a href="//' | sed -e 's/\/">//' | awk '{$1=$1};1' | sort --version-sort | \
+          grep -w -e "^{{ item }}" | tail -n1
+      register: versions_output
+      with_items: "{{ major_versions }}"
+
+    - name: Debug
+      ansible.builtin.debug:
+        msg: "Major version [{{ item.item }}]: {{ item.stdout }}"
+      with_items: "{{ versions_output.results }}"
+      loop_control:
+        label: "{{ item.item }}"
