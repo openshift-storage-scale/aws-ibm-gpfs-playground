@@ -60,6 +60,7 @@
         region: "{{ ocp_region }}"
         filters:
           "tag:Name": "{{ ocp_cluster_name }}*master*"
+          "instance-state-name": "running"
       register: ec2_workers
 
     - name: Set EC2 workers instance IDs
