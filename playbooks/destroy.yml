@@ -3,6 +3,9 @@
   hosts: localhost
   become: false
   gather_facts: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ./overrides.yml
   tasks:
     - name: Does terraform.tfvars.json exist
       ansible.builtin.stat:

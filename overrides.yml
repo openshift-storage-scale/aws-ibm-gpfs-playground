@@ -1,0 +1,12 @@
+# ocp_domain: "aws.validatedpatterns.io"
+# ocp_cluster_name: "gpfs-test"
+# ocp_worker_count: 3
+# ocp_worker_type: "m5.2xlarge"
+# ocp_master_count: 3
+# ocp_master_type: "m5.2xlarge"
+# ocp_az: "eu-central-1a"
+# ocp_region: "eu-central-1"
+
+# gpfs_version: "v5.2.2.x"
+
+# ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"
