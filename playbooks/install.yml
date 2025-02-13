@@ -305,12 +305,29 @@
         src: ../templates/localdisk.yaml
         dest: "{{ gpfsfolder }}/localdisk.yaml"
 
-    - name: Apply the the localdisk
+    - name: Apply the localdisk
       tags:
         - gpfs3
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
         {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk.yaml"
+      args:
+        chdir: "{{ ocpfolder }}"
+
+    - name: Template the filesystem
+      tags:
+        - gpfs4
+      ansible.builtin.template:
+        src: ../templates/filesystem.yaml
+        dest: "{{ gpfsfolder }}/filesystem.yaml"
+
+    - name: Apply the filesystem
+      tags:
+        - gpfs4
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem.yaml"
       args:
         chdir: "{{ ocpfolder }}"
