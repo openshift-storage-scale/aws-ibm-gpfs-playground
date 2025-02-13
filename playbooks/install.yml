@@ -68,7 +68,7 @@
     # We apply the MCO template right away because that will cause the nodes to
     # reboot and only later we add the EBS shared volume
     # This is because GPFS refuses to read the /dev/disk/by-id/nvme-AMAZON..volid
-    # symlink. This way we can just use /dev/nvme1n1 across the nodes 
+    # symlink. This way we can just use /dev/nvme1n1 across the nodes
     - name: Apply MCO template
       tags:
         - ocp_install
@@ -106,6 +106,25 @@
       delay: 20
       register: mcp_ready
       until: mcp_ready is not failed
+
+    # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
+    - name: Gather security group info for workers
+      amazon.aws.ec2_security_group_info:
+        region: eu-central-1
+        filters:
+          "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
+      register: sg_info
+
+    - name: Set sg id
+      ansible.builtin.set_fact:
+        sg_worker_id: "{{ sg_info[0].group_id }}"
+
+    # FIXME(bandini): use aws module here
+    - name: Open up default security groups so gpfs can work in AWS
+      ansible.builtin.shell: |
+        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
+        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
+        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
 
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
