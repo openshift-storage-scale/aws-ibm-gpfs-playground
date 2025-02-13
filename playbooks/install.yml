@@ -242,7 +242,7 @@
       tags:
         - gpfs3
       ansible.builtin.set_fact:
-        ebs_volid: "{{ volume_info.volumes[0].volume_id }}"
+        ebs_volid: "{{ volume_info.volumes[0].id }}"
 
     - name: Get worker nodes names
       tags:
@@ -266,3 +266,13 @@
       ansible.builtin.template:
         src: ../templates/localdisk.yaml
         dest: "{{ gpfsfolder }}/localdisk.yaml"
+
+    - name: Apply the the localdisk
+      tags:
+        - gpfs3
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk.yaml"
+      args:
+        chdir: "{{ ocpfolder }}"

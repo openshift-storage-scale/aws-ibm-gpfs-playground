@@ -7,7 +7,7 @@ metadata:
   name: ctlplanessharedlun
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{{ ebs_volid }}
+  device: /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{{ ebs_volid[4:] }}
   node: {{ worker_nodes[0] }}
   # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
   nodeConnectionSelector:
@@ -17,6 +17,6 @@ spec:
       values:
       {% for node in worker_nodes %}
       - {{ node }}
-      {% endfor %}}
+      {% endfor %}
   # set below only during testing
   existingDataSkipVerify: true
