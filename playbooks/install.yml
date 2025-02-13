@@ -146,11 +146,11 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
-        cat <<EOF > ibmscaleps.json
+        cat <<EOF > {{ gpfsfolder }}/ibmscaleps.json
         {"auths":{"quay.io/rhsysdeseng":{"auth":"{{ ibmpullsecret }}","email":""}}}
         EOF
         for namespace in ibm-spectrum-scale ibm-spectrum-scale-operator ibm-spectrum-scale-dns ibm-spectrum-scale-csi; do
-          {{ oc_bin }} create secret docker-registry ibm-entitlement-key -n ${namespace} --from-file=.dockerconfigjson=./ibmscaleps.json
+          {{ oc_bin }} create secret docker-registry ibm-entitlement-key -n ${namespace} --from-file=.dockerconfigjson={{ gpfsfolder }}/ibmscaleps.json
         done
       args:
         chdir: "{{ ocpfolder }}"
