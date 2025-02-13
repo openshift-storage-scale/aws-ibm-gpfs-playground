@@ -57,6 +57,56 @@
       args:
         chdir: "{{ ocpfolder }}"
 
+    - name: Template mco file
+      tags:
+        - ocp_install
+      ansible.builtin.template:
+        src: ../templates/mco.yaml
+        dest: "{{ gpfsfolder }}/mco.yaml"
+
+    # FIXME:
+    # We apply the MCO template right away because that will cause the nodes to
+    # reboot and only later we add the EBS shared volume
+    # This is because GPFS refuses to read the /dev/disk/by-id/nvme-AMAZON..volid
+    # symlink. This way we can just use /dev/nvme1n1 across the nodes 
+    - name: Apply MCO template
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
+      args:
+        chdir: "{{ ocpfolder }}"
+
+    # FIXME(bandini): Sleep here for a bit so we're sure it is started
+    # later we should wait for the mcp's to go in updating status and then
+    # wait for the finished condition
+    - name: Wait a bit for MCP to start
+      tags:
+        - ocp_install
+      ansible.builtin.pause:
+        minutes: 1
+
+    - name: Wait for MCP to settle
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
+          exit 1
+        fi
+        if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
+          exit 1
+        fi
+      args:
+        chdir: "{{ ocpfolder }}"
+      retries: 30
+      delay: 20
+      register: mcp_ready
+      until: mcp_ready is not failed
+
     - name: Find OpenShift EC2 Instances
       tags:
         - ebs
@@ -159,44 +209,12 @@
       args:
         chdir: "{{ ocpfolder }}"
 
-    - name: Template files
+    - name: Template cluster file
       tags:
         - gpfs
       ansible.builtin.template:
-        src: ../templates/{{ item }}
-        dest: "{{ gpfsfolder }}/{{ item }}"
-      loop:
-        - mco.yaml
-        - cluster.yaml
-
-    - name: Apply MCO template
-      tags:
-        - gpfs
-      ansible.builtin.shell: |
-        set -ex
-        export KUBECONFIG=./auth/kubeconfig
-        {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
-      args:
-        chdir: "{{ ocpfolder }}"
-
-    - name: Wait for MCP to settle
-      tags:
-        - gpfs2
-      ansible.builtin.shell: |
-        set -ex
-        export KUBECONFIG=./auth/kubeconfig
-        if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
-          exit 1
-        fi
-        if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
-          exit 1
-        fi
-      args:
-        chdir: "{{ ocpfolder }}"
-      retries: 30
-      delay: 20
-      register: mcp_ready
-      until: mcp_ready is not failed
+        src: ../templates/cluster.yaml
+        dest: "{{ gpfsfolder }}/cluster.yaml"
 
     - name: Label the workers
       tags:
