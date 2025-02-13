@@ -1,5 +1,5 @@
 ---
-- name: Destroy SNO cluster
+- name: Destroy cluster and EBS volumes
   hosts: localhost
   gather_facts: false
   tasks:
@@ -10,3 +10,20 @@
         {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=.
       args:
         chdir: "{{ ocpfolder }}"
+
+    - name: Get the Volume ID by Tag Name
+      amazon.aws.ec2_vol_info:
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ gpfs_volume_name }}"
+      register: volume_info
+
+    - name: Delete EBS io2 volume
+      tags:
+        - ebs
+      amazon.aws.ec2_vol:
+        region: "{{ ocp_region }}"
+        id: "{{ item.volume_id }}"
+        state: absent
+      loop: "{{ volume_info.volumes }}"
+      when: volume_info.volumes | length > 0

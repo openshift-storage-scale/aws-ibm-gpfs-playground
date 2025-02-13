@@ -79,7 +79,7 @@
         multi_attach: yes
         iops: "{{ ebs_iops }}"
         tags:
-          Name: "gpfs-volume"
+          Name: "{{ gpfs_volume_name }}"
       register: ebs_volume
 
     - name: Attach EBS volume to workers
@@ -212,3 +212,32 @@
         {{ oc_bin }} apply -f "{{ gpfsfolder }}/cluster.yaml"
       args:
         chdir: "{{ ocpfolder }}"
+
+    - name: Get the Volume ID by Tag Name again
+      tags:
+        - gpfs3
+      amazon.aws.ec2_vol_info:
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ gpfs_volume_name }}"
+      register: volume_info
+
+    - name: Fail if there is not exactly one ebs volume
+      tags:
+        - gpfs3
+      ansible.builtin.fail:
+        msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
+      when: volume_info.volumes | length != 1
+
+    - name: Set volumeid fact
+      tags:
+        - gpfs3
+      ansible.builtin.set_fact:
+        ebs_volid: "{{ volume_info.volumes[0].volume_id }}"
+
+    - name: Template the localdisk
+      tags:
+        - gpfs3
+      ansible.builtin.template:
+        src: ../templates/localdisk.yaml
+        dest: "{{ gpfsfolder }}/localdisk.yaml"

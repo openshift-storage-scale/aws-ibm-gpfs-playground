@@ -1,0 +1,22 @@
+apiVersion: scale.spectrum.ibm.com/v1beta1
+kind: LocalDisk
+metadata:
+  labels:
+    app.kubernetes.io/instance: ibm-spectrum-scale
+    app.kubernetes.io/name: cluster
+  name: ctlplanessharedlun
+  namespace: ibm-spectrum-scale
+spec:
+  device: /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{{ ebs_volid }}
+  node: openshift-ctlplane-0
+  # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
+  nodeConnectionSelector:
+    matchExpressions:
+    - key: kubernetes.io/hostname
+      operator: In
+      values:
+      - openshift-ctlplane-0
+      - openshift-ctlplane-1
+      - openshift-ctlplane-2
+  # set below only during testing
+  existingDataSkipVerify: true

@@ -24,6 +24,8 @@ ebs_device_name: "/dev/sdd"
 ebs_iops: 5000
 
 gpfs_version: "v5.2.2.x"
+gpfs_volume_name: "gpfs-volume"
+
 ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
 ocp_maj_min_version_dashed: "{{ ocp_maj_min_version | replace('.', '-') }}"
 basefolder: "{{ '~/aws-gpfs-playground' | expanduser }}"
