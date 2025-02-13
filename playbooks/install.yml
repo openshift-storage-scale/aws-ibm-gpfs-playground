@@ -49,7 +49,7 @@
         set -e
         chmod 0600 ./auth/kubeconfig
         export KUBECONFIG=./auth/kubeconfig
-        oc patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
+        {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
       args:
         chdir: "{{ ocpfolder }}"
 
@@ -99,7 +99,7 @@
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG=./auth/kubeconfig
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-container-native/{{ gpfs_version }}/generated/scale/install.yaml
+        {{ oc_bin }} apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-container-native/{{ gpfs_version }}/generated/scale/install.yaml
       args:
         chdir: "{{ ocpfolder }}"
 
@@ -124,7 +124,7 @@
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG=./auth/kubeconfig
-        {{ basefolder }}/{{ ocp_version }}/oc apply -f "{{ gpfsfolder }}/imagedigestmirror.yaml"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/imagedigestmirror.yaml"
       args:
         chdir: "{{ ocpfolder }}"
 
@@ -134,8 +134,8 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
-        NEW_PS=$({{ basefolder }}/{{ ocp_version }}/oc -n openshift-config get secret pull-secret -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d  | jq -c '.auths += {"quay.io/rhsysdeseng":{"auth":"{{ ibmpullsecret }}", "email":""}}' | base64 -w 0)
-        {{ basefolder }}/{{ ocp_version }}/oc -n openshift-config patch secret pull-secret -p "{\"data\":{\".dockerconfigjson\":\"$NEW_PS\"}}"
+        NEW_PS=$({{ oc_bin }} -n openshift-config get secret pull-secret -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d  | jq -c '.auths += {"quay.io/rhsysdeseng":{"auth":"{{ ibmpullsecret }}", "email":""}}' | base64 -w 0)
+        {{ oc_bin }} -n openshift-config patch secret pull-secret -p "{\"data\":{\".dockerconfigjson\":\"$NEW_PS\"}}"
       args:
         chdir: "{{ ocpfolder }}"
 
@@ -149,7 +149,7 @@
         {"auths":{"quay.io/rhsysdeseng":{"auth":"{{ ibmpullsecret }}","email":""}}}
         EOF
         for namespace in ibm-spectrum-scale ibm-spectrum-scale-operator ibm-spectrum-scale-dns ibm-spectrum-scale-csi; do
-          {{ basefolder }}/{{ ocp_version }}/oc create secret docker-registry ibm-entitlement-key -n ${namespace} --from-file=.dockerconfigjson=./ibmscaleps.json
+          {{ oc_bin }} create secret docker-registry ibm-entitlement-key -n ${namespace} --from-file=.dockerconfigjson=./ibmscaleps.json
         done
       args:
         chdir: "{{ ocpfolder }}"
@@ -170,6 +170,45 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
-        {{ basefolder }}/{{ ocp_version }}/oc apply -f {{ gpfsfolder }}/mco.yaml
+        {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
+      args:
+        chdir: "{{ ocpfolder }}"
+
+    - name: Wait for MCP to settle
+      tags:
+        - gpfs2
+      ansible.builtin.shell: |
+        if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
+          exit 1
+        fi
+        if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
+          exit 1
+        fi
+      retries: 30
+      delay: 20
+      register: mcp_ready
+      until: mcp_ready is not failed
+
+    - name: Label the workers
+      tags:
+        - gpfs2
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
+        do
+          {{ oc_bin }} label ${node} scale.spectrum.ibm.com/role=storage
+          {{ oc_bin }} label ${node} scale.spectrum.ibm.com/daemon-selector=""
+        done
+      args:
+        chdir: "{{ ocpfolder }}"
+
+    - name: Apply the cluster template
+      tags:
+        - gpfs2
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/cluster.yaml"
       args:
         chdir: "{{ ocpfolder }}"

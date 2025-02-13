@@ -28,6 +28,7 @@ ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[
 ocp_maj_min_version_dashed: "{{ ocp_maj_min_version | replace('.', '-') }}"
 basefolder: "{{ '~/aws-gpfs-playground' | expanduser }}"
 ocpfolder: "{{ basefolder }}/ocp_install_files"
+oc_bin: "{{ basefolder }}/{{ ocp_version }}/oc"
 gpfsfolder: "{{ basefolder }}/gpfs"
 tempfolder: "/tmp/aws-gpfs-temp-folder"
 openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp"
