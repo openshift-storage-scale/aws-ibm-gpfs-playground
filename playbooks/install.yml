@@ -1,5 +1,5 @@
 ---
-- name: Playbook to create openshift cluster
+- name: Playbook to set up the Openshift Cluster
   hosts: localhost
   gather_facts: false
   become: false
@@ -53,4 +53,42 @@
       args:
         chdir: "{{ ocpfolder }}"
 
+    - name: Find OpenShift EC2 Instances
+      tags:
+        - ebs
+      amazon.aws.ec2_instance_info:
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ocp_cluster_name }}*worker*"
+      register: ec2_workers
 
+    - name: Set EC2 workers instance IDs
+      tags:
+        - ebs
+      ansible.builtin.set_fact:
+        worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
+
+    - name: Create EBS io2 volume
+      tags:
+        - ebs
+      amazon.aws.ec2_vol:
+        region: "{{ ocp_region }}"
+        availability_zone: "{{ ocp_az }}"
+        volume_size: "{{ ebs_volume_size }}"
+        volume_type: "{{ ebs_volume_type }}"
+        multi_attach: yes
+        iops: "{{ ebs_iops }}"
+        tags:
+          Name: "gpfs-volume"
+      register: ebs_volume
+
+    - name: Attach EBS volume to workers
+      tags:
+        - ebs
+      amazon.aws.ec2_vol:
+        region: "{{ ocp_region }}"
+        instance: "{{ item }}"
+        id: "{{ ebs_volume.volume_id }}"
+        device_name: "{{ ebs_device_name }}"
+      loop: "{{ worker_ec2_ids }}"
+      when: ebs_volume.volume_id is defined

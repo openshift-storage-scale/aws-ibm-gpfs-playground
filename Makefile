@@ -20,11 +20,11 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 
 .PHONY: install
 install: ## Install an OCP cluster on AWS
-	ansible-playbook -i hosts $(TAGS_STRING) --extra-vars='{"snos":[$(SNOS)]}' $(EXTRA_VARS) playbooks/install.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: destroy
 destroy: ## Destroy installed AWS cluster
-	ansible-playbook -i hosts $(TAGS_STRING) --extra-vars='{"snos":[$(SNOS)]}' $(EXTRA_VARS) playbooks/destroy.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/destroy.yml
 
 ##@ CI / Linter tasks
 .PHONY: lint
