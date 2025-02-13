@@ -2,6 +2,7 @@
 - name: Playbook to create openshift cluster
   hosts: localhost
   gather_facts: false
+  become: false
   vars_files:
     # Use this to override stuff that won't be committed to git
     - ./overrides.yml
@@ -11,19 +12,45 @@
         path: "{{ ocpfolder }}"
         state: directory
         recurse: true
+
     - name: Template OCP install file
       tags:
         - ocp_install
       ansible.builtin.template:
         src: ../templates/full-cluster-install-config.j2.yaml
         dest: "{{ ocpfolder }}/install-config.yaml"
+
+    - name: Set kubeadmin password fact
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        python -c 'import bcrypt; print(bcrypt.hashpw(b"{{ kubeadmin_pass }}", bcrypt.gensalt(rounds=10)).decode())' | base64 -w0
+      register:
+        hashed_password_out
+
+    - name: Set hashed password fact
+      ansible.builtin.set_fact:
+        hashed_password: "{{ hashed_password_out.stdout }}"
+
     - name: Install ocp cluster
       tags:
         - ocp_install
       ansible.builtin.shell: |
-        set -e
-        pwd
-        {{ basefolder }}/{{ ocp_version }}/oc help
+        set -ex
+        id
+        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> /tmp/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
       args:
         chdir: "{{ ocpfolder }}"
+
+    - name: Set kubeadmin password
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        set -e
+        chmod 0600 ./auth/kubeconfig
+        export KUBECONFIG=./auth/kubeconfig
+        oc patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
+      args:
+        chdir: "{{ ocpfolder }}"
+
 

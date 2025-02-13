@@ -7,8 +7,6 @@
       tags:
         - ocp_destroy
       ansible.builtin.shell: |
-        set -e
-        pwd
-        {{ basefolder }}/{{ ocp_version }}/oc help
+        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=.
       args:
         chdir: "{{ ocpfolder }}"

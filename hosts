@@ -1,11 +1,1 @@
-localhost ansible_connection=local ansible_user=root
-
-[all:vars]
-#ansible_user=michele
-#ansible_ssh_pass=mypass
-#ansible_become_pass=mypass
-#ansible_remote_tmp=/tmp/.ansible
-#username=myuser
-#controller_hostname=192.168.5.207
-automation_hub_url_vault=https://cloud.redhat.com/api/automation-hub/api/galaxy/
-#automation_hub_token_vault=
+localhost ansible_connection=local
