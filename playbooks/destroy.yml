@@ -19,9 +19,11 @@
           "tag:Name": "{{ gpfs_volume_name }}"
       register: volume_info
 
+    - name: Debug volume
+      ansible.builtin.debug:
+        msg: "{{ volume_info }}"
+
     - name: Delete EBS io2 volume
-      tags:
-        - ebs
       amazon.aws.ec2_vol:
         region: "{{ ocp_region }}"
         id: "{{ item.volume_id }}"
