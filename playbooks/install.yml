@@ -343,3 +343,21 @@
         {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem.yaml"
       args:
         chdir: "{{ ocpfolder }}"
+
+    - name: Template the test deployment
+      tags:
+        - gpfs5
+      ansible.builtin.template:
+        src: ../templates/test_consume.yaml
+        dest: "{{ gpfsfolder }}/test_consume.yaml"
+
+    - name: Apply the test deployment
+      tags:
+        - gpfs5
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/test_consume.yaml"
+      args:
+        chdir: "{{ ocpfolder }}"
+

@@ -1,8 +1,15 @@
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: ibm-test-deployment
+spec:
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: ibm-scale-claim
+  namespace: ibm-test-deployment
 spec:
   accessModes:
     - ReadWriteMany
@@ -14,10 +21,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: null
   labels:
     app: writer
   name: writer
+  namespace: ibm-test-deployment
 spec:
   replicas: 1
   selector:
@@ -45,10 +52,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: null
   labels:
     app: reader
   name: reader
+  namespace: ibm-test-deployment
 spec:
   replicas: 1
   selector:
