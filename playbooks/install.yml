@@ -107,13 +107,14 @@
       register: mcp_ready
       until: mcp_ready is not failed
 
+    # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
       tags:
         - ebs
       amazon.aws.ec2_instance_info:
         region: "{{ ocp_region }}"
         filters:
-          "tag:Name": "{{ ocp_cluster_name }}*master*"
+          "tag:Name": "{{ ocp_cluster_name }}*worker*"
           "instance-state-name": "running"
       register: ec2_workers
 
@@ -222,7 +223,7 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
-        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/master -o name)
+        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
         do
           {{ oc_bin }} label ${node} scale.spectrum.ibm.com/role=storage
           {{ oc_bin }} label ${node} scale.spectrum.ibm.com/daemon-selector=""
@@ -267,7 +268,7 @@
         - gpfs3
       ansible.builtin.shell: |
         export KUBECONFIG=./auth/kubeconfig
-        {{ oc_bin }} get nodes -l node-role.kubernetes.io/master -o name | cut -f2 -d/
+        {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
       args:
         chdir: "{{ ocpfolder }}"
       register: worker_nodes_output

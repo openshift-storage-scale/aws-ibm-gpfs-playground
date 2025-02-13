@@ -2,8 +2,8 @@ apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
   labels:
-    machineconfiguration.openshift.io/role: master
-  name: 00-master-ibm-spectrum-scale-kernel-devel
+    machineconfiguration.openshift.io/role: worker
+  name: 00-worker-ibm-spectrum-scale-kernel-devel
 spec:
   config:
     ignition:
