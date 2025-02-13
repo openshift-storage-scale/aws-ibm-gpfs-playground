@@ -103,7 +103,7 @@
       args:
         chdir: "{{ ocpfolder }}"
       retries: 30
-      delay: 20
+      delay: 60
       register: mcp_ready
       until: mcp_ready is not failed
 
