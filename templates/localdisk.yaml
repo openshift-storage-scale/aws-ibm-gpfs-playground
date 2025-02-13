@@ -7,7 +7,9 @@ metadata:
   name: ctlplanessharedlun
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{{ ebs_volid[4:] }}
+  # FIXME(bandini): the stable symlink gets EPERM from gpfs, so for now this will do
+  # note that a node reboot might just rename this devices, so...
+  device: /dev/nvme1n1
   node: {{ worker_nodes[0] }}
   # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
   nodeConnectionSelector:
