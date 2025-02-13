@@ -178,12 +178,16 @@
       tags:
         - gpfs2
       ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
         if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
         if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
+      args:
+        chdir: "{{ ocpfolder }}"
       retries: 30
       delay: 20
       register: mcp_ready
@@ -234,6 +238,22 @@
         - gpfs3
       ansible.builtin.set_fact:
         ebs_volid: "{{ volume_info.volumes[0].volume_id }}"
+
+    - name: Get worker nodes names
+      tags:
+        - gpfs3
+      ansible.builtin.shell: |
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
+      args:
+        chdir: "{{ ocpfolder }}"
+      register: worker_nodes_output
+
+    - name: Set worker nodes names fact
+      tags:
+        - gpfs3
+      ansible.builtin.set_fact:
+        worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
     - name: Template the localdisk
       tags:

@@ -8,15 +8,15 @@ metadata:
   namespace: ibm-spectrum-scale
 spec:
   device: /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{{ ebs_volid }}
-  node: openshift-ctlplane-0
+  node: {{ worker_nodes[0] }}
   # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
   nodeConnectionSelector:
     matchExpressions:
     - key: kubernetes.io/hostname
       operator: In
       values:
-      - openshift-ctlplane-0
-      - openshift-ctlplane-1
-      - openshift-ctlplane-2
+      {% for node in worker_nodes %}
+      - {{ node }}
+      {% endfor %}}
   # set below only during testing
   existingDataSkipVerify: true
