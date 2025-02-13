@@ -1,0 +1,74 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ibm-scale-claim
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "ibm-spectrum-scale-sample"
+  resources:
+    requests:
+      storage: 200Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: writer
+  name: writer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: writer
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: writer
+    spec:
+      volumes:
+      - name: shared-volume
+        persistentVolumeClaim:
+          claimName: ibm-scale-claim
+      containers:
+      - name: writer
+        image: alpine
+        command: ["/bin/sh", "-c", "while true; do echo $(date) >> /mnt/date.txt; sleep 1; done"]
+        volumeMounts:
+          - name: shared-volume
+            mountPath: "/mnt"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: reader
+  name: reader
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reader
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: reader
+    spec:
+      volumes:
+      - name: shared-volume
+        persistentVolumeClaim:
+          claimName: ibm-scale-claim
+      containers:
+      - name: reader
+        image: alpine
+        command: ["/bin/sh", "-c", "while true; do cat /mnt/date.txt; sleep 1; done"]
+        volumeMounts:
+          - name: shared-volume
+            mountPath: "/mnt"
