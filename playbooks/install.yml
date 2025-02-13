@@ -59,7 +59,7 @@
       amazon.aws.ec2_instance_info:
         region: "{{ ocp_region }}"
         filters:
-          "tag:Name": "{{ ocp_cluster_name }}*worker*"
+          "tag:Name": "{{ ocp_cluster_name }}*master*"
       register: ec2_workers
 
     - name: Set EC2 workers instance IDs
@@ -199,7 +199,7 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
-        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
+        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/master -o name)
         do
           {{ oc_bin }} label ${node} scale.spectrum.ibm.com/role=storage
           {{ oc_bin }} label ${node} scale.spectrum.ibm.com/daemon-selector=""
@@ -244,7 +244,7 @@
         - gpfs3
       ansible.builtin.shell: |
         export KUBECONFIG=./auth/kubeconfig
-        {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
+        {{ oc_bin }} get nodes -l node-role.kubernetes.io/master -o name | cut -f2 -d/
       args:
         chdir: "{{ ocpfolder }}"
       register: worker_nodes_output

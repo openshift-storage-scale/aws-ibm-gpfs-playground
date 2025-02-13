@@ -13,7 +13,7 @@ ocp_cluster_name: "gpfs-test"
 ocp_worker_count: 3
 ocp_worker_type: "m5.2xlarge"
 ocp_master_count: 3
-ocp_master_type: "m5.2xlarge"
+ocp_master_type: "m5.4xlarge"
 ocp_az: "eu-central-1a"
 ocp_region: "eu-central-1"
 ocp_arch: "amd64"

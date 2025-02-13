@@ -1,13 +1,14 @@
 ---
 - name: Destroy cluster and EBS volumes
   hosts: localhost
+  become: false
   gather_facts: false
   tasks:
     - name: Destroy ocp cluster
       tags:
         - ocp_destroy
       ansible.builtin.shell: |
-        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=.
+        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
 
