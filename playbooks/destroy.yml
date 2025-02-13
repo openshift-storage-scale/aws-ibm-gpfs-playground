@@ -4,6 +4,11 @@
   become: false
   gather_facts: false
   tasks:
+    - name: Is install-config.yaml still existing
+      ansible.builtin.stat:
+        path: "{{ ocpfolder }}/install-config.yaml"
+      register: install_config_file
+
     - name: Destroy ocp cluster
       tags:
         - ocp_destroy
@@ -11,6 +16,7 @@
         {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
+      when: not install_config_file.stat.exists
 
     - name: Get the Volume ID by Tag Name
       amazon.aws.ec2_vol_info:
@@ -26,7 +32,7 @@
     - name: Delete EBS io2 volume
       amazon.aws.ec2_vol:
         region: "{{ ocp_region }}"
-        id: "{{ item.volume_id }}"
+        id: "{{ item.id }}"
         state: absent
       loop: "{{ volume_info.volumes }}"
       when: volume_info.volumes | length > 0
