@@ -112,16 +112,22 @@
       tags:
         - aws
       amazon.aws.ec2_security_group_info:
-        region: eu-central-1
+        region: "{{ ocp_region }}"
         filters:
           "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
       register: sg_info
+
+    - name: Debug sg_info
+      tags:
+        - aws
+      ansible.builtin.debug:
+        msg: "{{ sg_info }}"
 
     - name: Set sg id
       tags:
         - aws
       ansible.builtin.set_fact:
-        sg_worker_id: "{{ sg_info[0].group_id }}"
+        sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
 
     # FIXME(bandini): use aws module here
     - name: Open up default security groups so gpfs can work in AWS
