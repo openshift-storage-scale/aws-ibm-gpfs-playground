@@ -8,6 +8,8 @@
     - ./overrides.yml
   tasks:
     - name: Create working folder
+      tags:
+        - ocp_install
       ansible.builtin.file:
         path: "{{ ocpfolder }}"
         state: directory
@@ -29,6 +31,8 @@
         hashed_password_out
 
     - name: Set hashed password fact
+      tags:
+        - ocp_install
       ansible.builtin.set_fact:
         hashed_password: "{{ hashed_password_out.stdout }}"
 
