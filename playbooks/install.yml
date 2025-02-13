@@ -109,6 +109,8 @@
 
     # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Gather security group info for workers
+      tags:
+        - aws
       amazon.aws.ec2_security_group_info:
         region: eu-central-1
         filters:
@@ -116,11 +118,15 @@
       register: sg_info
 
     - name: Set sg id
+      tags:
+        - aws
       ansible.builtin.set_fact:
         sg_worker_id: "{{ sg_info[0].group_id }}"
 
     # FIXME(bandini): use aws module here
     - name: Open up default security groups so gpfs can work in AWS
+      tags:
+        - aws
       ansible.builtin.shell: |
         aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
         aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
