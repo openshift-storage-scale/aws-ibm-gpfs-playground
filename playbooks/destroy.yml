@@ -4,10 +4,10 @@
   become: false
   gather_facts: false
   tasks:
-    - name: Is install-config.yaml still existing
+    - name: Does terraform.tfvars.json exist
       ansible.builtin.stat:
-        path: "{{ ocpfolder }}/install-config.yaml"
-      register: install_config_file
+        path: "{{ ocpfolder }}/terraform.tfvars.json"
+      register: terraform_vars_file
 
     - name: Destroy ocp cluster
       tags:
@@ -16,7 +16,7 @@
         {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
-      when: not install_config_file.stat.exists
+      when: terraform_vars_file.stat.exists
 
     - name: Get the Volume ID by Tag Name
       amazon.aws.ec2_vol_info:
