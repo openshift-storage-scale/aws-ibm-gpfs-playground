@@ -1,6 +1,15 @@
 apiVersion: v1
 baseDomain: {{ ocp_domain }}
-compute: []
+compute:
+- architecture: {{ ocp_arch }}
+  hyperthreading: Enabled
+  name: worker
+  platform:
+    aws:
+      type: {{ ocp_worker_type }}
+      zones:
+       - {{ ocp_az }}
+  replicas: {{ ocp_worker_count }}
 controlPlane:
   architecture: {{ ocp_arch }}
   hyperthreading: Enabled
