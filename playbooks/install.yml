@@ -364,6 +364,23 @@
       args:
         chdir: "{{ ocpfolder }}"
 
+    - name: Template the snapshotclass
+      tags:
+        - gpfs4
+      ansible.builtin.template:
+        src: ../templates/snapshot.yaml
+        dest: "{{ gpfsfolder }}/snapshot.yaml"
+
+    - name: Apply the snapshotclass
+      tags:
+        - gpfs4
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/snapshot.yaml"
+      args:
+        chdir: "{{ ocpfolder }}"
+
     - name: Template the test deployment
       tags:
         - gpfs5
