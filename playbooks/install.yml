@@ -104,6 +104,16 @@
       ansible.builtin.pause:
         minutes: 1
 
+    - name: Speed up MCO
+      tags:
+        - ocp_install
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG=./auth/kubeconfig
+        oc patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
+      args:
+        chdir: "{{ ocpfolder }}"
+
     - name: Wait for MCP to settle
       tags:
         - ocp_install
