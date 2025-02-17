@@ -18,6 +18,9 @@ spec:
       prefetchTimeout: "30"
     nodeSelector:
       scale.spectrum.ibm.com/daemon-selector: ""
+    pmcollector:
+      nodeSelector:
+        scale.spectrum.ibm.com/daemon-selector: ""
     roles:
     - name: client
       resources:
