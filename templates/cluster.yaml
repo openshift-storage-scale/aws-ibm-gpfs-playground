@@ -7,6 +7,9 @@ metadata:
   name: ibm-spectrum-scale
   namespace: ibm-spectrum-scale
 spec:
+  pmcollector:
+    nodeSelector:
+      scale.spectrum.ibm.com/daemon-selector: ""
   daemon:
     clusterProfile:
       controlSetxattrImmutableSELinux: "yes"
@@ -18,9 +21,6 @@ spec:
       prefetchTimeout: "30"
     nodeSelector:
       scale.spectrum.ibm.com/daemon-selector: ""
-    pmcollector:
-      nodeSelector:
-        scale.spectrum.ibm.com/daemon-selector: ""
     roles:
     - name: client
       resources:
