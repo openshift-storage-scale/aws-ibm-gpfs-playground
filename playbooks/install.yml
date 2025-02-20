@@ -9,7 +9,7 @@
   tasks:
     - name: Create working folder
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.file:
         path: "{{ ocpfolder }}"
         state: directory
@@ -22,7 +22,7 @@
 
     - name: Template OCP install file
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.template:
         src: ../templates/full-cluster-install-config.j2.yaml
         dest: "{{ ocpfolder }}/install-config.yaml"
@@ -30,7 +30,7 @@
 
     - name: Set kubeadmin password fact
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         python -c 'import bcrypt; print(bcrypt.hashpw(b"{{ kubeadmin_pass }}", bcrypt.gensalt(rounds=10)).decode())' | base64 -w0
       register:
@@ -38,13 +38,13 @@
 
     - name: Set hashed password fact
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.set_fact:
         hashed_password: "{{ hashed_password_out.stdout }}"
 
     - name: Install ocp cluster
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         set -ex
         id
@@ -64,7 +64,7 @@
 
     - name: Set kubeadmin password
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         set -e
         chmod 0600 ./auth/kubeconfig
@@ -75,7 +75,7 @@
 
     - name: Template mco file
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.template:
         src: ../templates/mco.yaml
         dest: "{{ gpfsfolder }}/mco.yaml"
@@ -87,7 +87,7 @@
     # symlink. This way we can just use /dev/nvme1n1 across the nodes
     - name: Apply MCO template
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -100,13 +100,13 @@
     # wait for the finished condition
     - name: Wait a bit for MCP to start
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.pause:
         minutes: 1
 
     - name: Speed up MCO
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -116,7 +116,7 @@
 
     - name: Wait for MCP to settle
       tags:
-        - ocp_install
+        - 1_ocp_install
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -136,7 +136,7 @@
     # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Gather security group info for workers
       tags:
-        - aws
+        - 2_aws
       amazon.aws.ec2_security_group_info:
         region: "{{ ocp_region }}"
         filters:
@@ -145,20 +145,20 @@
 
     - name: Debug sg_info
       tags:
-        - aws
+        - 2_aws
       ansible.builtin.debug:
         msg: "{{ sg_info }}"
 
     - name: Set sg id
       tags:
-        - aws
+        - 2_aws
       ansible.builtin.set_fact:
         sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
 
     # FIXME(bandini): use aws module here
     - name: Open up default security groups so gpfs can work in AWS
       tags:
-        - aws
+        - 2_aws
       ansible.builtin.shell: |
         aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
         aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
@@ -167,7 +167,7 @@
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
       tags:
-        - ebs
+        - 3_ebs
       amazon.aws.ec2_instance_info:
         region: "{{ ocp_region }}"
         filters:
@@ -177,13 +177,13 @@
 
     - name: Set EC2 workers instance IDs
       tags:
-        - ebs
+        - 3_ebs
       ansible.builtin.set_fact:
         worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
 
     - name: Create EBS io2 volume
       tags:
-        - ebs
+        - 3_ebs
       amazon.aws.ec2_vol:
         region: "{{ ocp_region }}"
         availability_zone: "{{ ocp_az }}"
@@ -197,7 +197,7 @@
 
     - name: Attach EBS volume to workers
       tags:
-        - ebs
+        - 3_ebs
       amazon.aws.ec2_vol:
         region: "{{ ocp_region }}"
         instance: "{{ item }}"
@@ -208,7 +208,7 @@
 
     - name: Install ibm spectrum manifest
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG=./auth/kubeconfig
@@ -218,7 +218,7 @@
 
     - name: Create gpfs folder
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.file:
         path: "{{ gpfsfolder }}"
         state: directory
@@ -226,14 +226,14 @@
 
     - name: template ocp mirror
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.template:
         src: ../templates/imagedigestmirror.yaml
         dest: "{{ gpfsfolder }}/imagedigestmirror.yaml"
 
     - name: Apply mirror template
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG=./auth/kubeconfig
@@ -243,7 +243,7 @@
 
     - name: Update global pull secret
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -254,7 +254,7 @@
 
     - name: Create ibm secret
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -269,14 +269,14 @@
 
     - name: Template cluster file
       tags:
-        - gpfs
+        - 4_gpfs
       ansible.builtin.template:
         src: ../templates/cluster.yaml
         dest: "{{ gpfsfolder }}/cluster.yaml"
 
     - name: Label the workers
       tags:
-        - gpfs2
+        - 5_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -290,7 +290,7 @@
 
     - name: Apply the cluster template
       tags:
-        - gpfs2
+        - 5_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -304,7 +304,7 @@
 
     - name: Get the Volume ID by Tag Name again
       tags:
-        - gpfs3
+        - 6_gpfs
       amazon.aws.ec2_vol_info:
         region: "{{ ocp_region }}"
         filters:
@@ -313,20 +313,20 @@
 
     - name: Fail if there is not exactly one ebs volume
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.fail:
         msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
       when: volume_info.volumes | length != 1
 
     - name: Set volumeid fact
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.set_fact:
         ebs_volid: "{{ volume_info.volumes[0].id }}"
 
     - name: Get worker nodes names
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.shell: |
         export KUBECONFIG=./auth/kubeconfig
         {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
@@ -336,20 +336,20 @@
 
     - name: Set worker nodes names fact
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.set_fact:
         worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
     - name: Template the localdisk
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.template:
         src: ../templates/localdisk.yaml
         dest: "{{ gpfsfolder }}/localdisk.yaml"
 
     - name: Apply the localdisk
       tags:
-        - gpfs3
+        - 6_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -359,14 +359,14 @@
 
     - name: Template the filesystem
       tags:
-        - gpfs4
+        - 7_gpfs
       ansible.builtin.template:
         src: ../templates/filesystem.yaml
         dest: "{{ gpfsfolder }}/filesystem.yaml"
 
     - name: Apply the filesystem
       tags:
-        - gpfs4
+        - 7_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -376,14 +376,14 @@
 
     - name: Template the snapshotclass
       tags:
-        - gpfs4
+        - 7_gpfs
       ansible.builtin.template:
         src: ../templates/snapshot.yaml
         dest: "{{ gpfsfolder }}/snapshot.yaml"
 
     - name: Apply the snapshotclass
       tags:
-        - gpfs4
+        - 7_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -393,14 +393,14 @@
 
     - name: Template the test deployment
       tags:
-        - gpfs5
+        - 8_gpfs
       ansible.builtin.template:
         src: ../templates/test_consume.yaml
         dest: "{{ gpfsfolder }}/test_consume.yaml"
 
     - name: Apply the test deployment
       tags:
-        - gpfs5
+        - 8_gpfs
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig

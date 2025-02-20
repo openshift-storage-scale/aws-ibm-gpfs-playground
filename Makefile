@@ -26,6 +26,10 @@ install: ## Install an OCP cluster on AWS
 destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/destroy.yml
 
+.PHONY: list-tags
+list-tags: ## Lists all tags in the install playbook
+	ansible-playbook --list-tags playbooks/install.yml
+
 ##@ CI / Linter tasks
 .PHONY: lint
 lint: ## Run ansible-lint on the codebase
