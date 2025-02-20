@@ -16,4 +16,3 @@
     msg: "Found catalog tag: {{ catalog_tag }}"
   tags:
     - 4_operator
-

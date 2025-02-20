@@ -1,5 +1,5 @@
 ---
-- name: Mirror all tools listed in ocp_versions 
+- name: Mirror all tools listed in ocp_versions
   hosts: localhost
   gather_facts: false
   become: false
