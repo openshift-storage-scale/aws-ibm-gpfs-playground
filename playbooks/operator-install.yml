@@ -1,0 +1,19 @@
+- name: Find latest version of operator catalog
+  ansible.builtin.shell: |
+    skopeo list-tags docker://{{ operator_registry }}/{{ operator_catalog }} | jq -r '.Tags | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))) | sort_by(.) | last'
+  register: tags_raw
+  tags:
+    - 4_operator
+
+- name: Set catalog tag fact
+  ansible.builtin.set_fact:
+    catalog_tag: "{{ tags_raw.stdout }}"
+  tags:
+    - 4_operator
+
+- name: Print found catalog tag
+  ansible.builtin.debug:
+    msg: "Found catalog tag: {{ catalog_tag }}"
+  tags:
+    - 4_operator
+

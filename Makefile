@@ -22,6 +22,10 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 install: ## Install an OCP cluster on AWS
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/install.yml
 
+.PHONY: operator-install
+operator-install: ## Install an OCP cluster on AWS via purple operator
+	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=true $(EXTRA_VARS) playbooks/install.yml
+
 .PHONY: destroy
 destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/destroy.yml
