@@ -1,0 +1,13 @@
+apiVersion: purple.purplestorage.com/v1alpha1
+kind: PurpleStorage
+metadata:
+  name: purplestorage-sample
+  namespace: openshift-operators
+spec:
+  ibm_cnsa_cluster:
+    create: true
+  ibm_cnsa_version: v5.2.2.0
+  machineconfig:
+    labels:
+      machineconfiguration.openshift.io/role: worker
+  pull_secret: ''
