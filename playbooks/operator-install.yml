@@ -16,3 +16,20 @@
     msg: "Found catalog tag: {{ catalog_tag }}"
   tags:
     - 4_operator
+
+- name: Template catalogsource
+  ansible.builtin.template:
+    src: ../templates/operator-catalog.yaml
+    dest: "{{ gpfsfolder }}/operator-catalog.yaml"
+  tags:
+    - 4_operator
+
+- name: Apply catalog
+  tags:
+    - 4_operator
+  ansible.builtin.shell: |
+    set -e
+    export KUBECONFIG=./auth/kubeconfig
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/operator-catalog.yaml"
+  args:
+    chdir: "{{ ocpfolder }}"
