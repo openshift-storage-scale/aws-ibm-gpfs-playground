@@ -6,4 +6,4 @@ metadata:
 spec:
   displayName: Test Purple Storage Operator
   sourceType: grpc
-  image: {{ catalog_tag }}
+  image: "{{ operator_registry }}/{{ operator_catalog }}:{{ catalog_tag }}"
