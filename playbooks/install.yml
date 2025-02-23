@@ -208,8 +208,13 @@
       loop: "{{ worker_ec2_ids }}"
       when: ebs_volume.volume_id is defined
 
+    # Installs GPFS without the purple operator
     - ansible.builtin.import_tasks: gpfs.yml
       when: not use_operator
 
+    # Installs GPFS with the purple operator
     - ansible.builtin.import_tasks: operator-install.yml
       when: use_operator
+
+    # Creates localdisk + filesystem + test environment
+    - ansible.builtin.import_tasks: gpfs-day2.yml

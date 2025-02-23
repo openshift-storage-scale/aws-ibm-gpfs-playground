@@ -60,11 +60,11 @@
     src: ../templates/purplestorage.yaml
     dest: "{{ gpfsfolder }}/purplestorage.yaml"
   tags:
-    - 4_operator
+    - 5_operator
 
 - name: Apply purplestorage
   tags:
-    - 4_operator
+    - 5_operator
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG=./auth/kubeconfig
