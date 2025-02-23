@@ -52,6 +52,10 @@
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk.yaml"
   args:
     chdir: "{{ ocpfolder }}"
+  retries: 10
+  delay: 30
+  register: localdisk_ready
+  until: localdisk_ready is not failed
 
 - name: Template the filesystem
   tags:
@@ -69,6 +73,10 @@
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem.yaml"
   args:
     chdir: "{{ ocpfolder }}"
+  retries: 10
+  delay: 30
+  register: filesystem_ready
+  until: filesystem_ready is not failed
 
 - name: Template the snapshotclass
   tags:
