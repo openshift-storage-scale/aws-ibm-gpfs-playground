@@ -1,0 +1,98 @@
+---
+# Follows https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes
+# to cleanup all objects
+- name: Playbook to cleanup GPFS
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ./overrides.yml
+  tasks:
+  - name: Delete the test deployment
+    tags:
+      - 1_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/test_consume.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    failed_when: false
+
+  - name: Delete the snapshotclass
+    tags:
+      - 1_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/snapshot.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    failed_when: false
+
+  - name: Delete the filesystem
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/filesystem.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 2
+    delay: 5
+    register: filesystem_ready
+    until: filesystem_ready is not failed
+    ignore_errors: true
+
+  - name: Debug filesystem removal errors
+    ansible.builtin.debug:
+      msg: "{{ filesystem_ready.stdout }}"
+    when: filesystem_ready is failed
+
+  - name: Delete the localdisk
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/localdisk.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 2
+    delay: 5
+    register: localdisk_ready
+    until: localdisk_ready is not failed
+    ignore_errors: true
+
+  - name: Debug localdisk removal errors
+    ansible.builtin.debug:
+      msg: "{{ localdisk_ready.stdout }}"
+    when: localdisk_ready is failed
+
+  - name: Get worker nodes names
+    tags:
+      - 3_cleanup
+    ansible.builtin.shell: |
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
+    args:
+      chdir: "{{ ocpfolder }}"
+    register: worker_nodes_output
+
+  - name: Set worker nodes names fact
+    tags:
+      - 3_cleanup
+    ansible.builtin.set_fact:
+      worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
+
+  - name: Clean up local folders
+    tags:
+      - 3_cleanup
+    ansible.builtin.shell: |
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} debug node/{{ item }} -T -- chroot /host sh -c "rm -rf /var/mmfs; rm -rf /var/adm/ras"
+    args:
+      chdir: "{{ ocpfolder }}"
+    loop: "{{ worker_nodes }}"
