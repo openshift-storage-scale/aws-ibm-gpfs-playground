@@ -30,6 +30,10 @@ operator-install: ## Install an OCP cluster on AWS via purple operator
 gpfs-cleanup: ## Deletes all the GPFS objects (https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes)
 	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=true $(EXTRA_VARS) playbooks/gpfs-cleanup.yml
 
+.PHONY: gpfs-health
+gpfs-health: ## Prints some GPFS healthcheck commands
+	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=true $(EXTRA_VARS) playbooks/gpfs-health.yml
+
 .PHONY: destroy
 destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/destroy.yml
