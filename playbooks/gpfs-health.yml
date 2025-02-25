@@ -28,6 +28,11 @@
     args:
       chdir: "{{ ocpfolder }}"
     failed_when: false
+    register: mmlscluster
+
+  - name: Output mmlcluster
+    ansible.builtin.debug:
+      msg: "{{ mmlscluster.stdout }}"
 
   - name: Run mmlsnsd -M
     ansible.builtin.shell: |
@@ -39,3 +44,8 @@
     args:
       chdir: "{{ ocpfolder }}"
     failed_when: false
+    register: mmlsnsd
+
+  - name: Output mmlsnsd
+    ansible.builtin.debug:
+      msg: "{{ mmlsnsd.stdout }}"
