@@ -89,9 +89,31 @@
     ignore_errors: true
 
   - name: Debug localdisk removal errors
+    tags:
+      - 2_cleanup
     ansible.builtin.debug:
       msg: "{{ localdisk_ready.stdout }}"
     when: localdisk_ready is failed
+
+  - name: Delete the cluster
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/cluster.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 2
+    delay: 5
+    register: cluster_ready
+    until: cluster_ready is not failed
+    ignore_errors: true
+
+  - name: Debug cluster removal errors
+    ansible.builtin.debug:
+      msg: "{{ cluster_ready.stdout }}"
+    when: cluster_ready is failed
 
   - name: Get worker nodes names
     tags:
