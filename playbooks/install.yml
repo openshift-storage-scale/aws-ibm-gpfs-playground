@@ -18,6 +18,8 @@
         recurse: true
 
     - name: Does cluster metadata.json exist
+      tags:
+        - 1_ocp_install
       ansible.builtin.stat:
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file
@@ -56,11 +58,15 @@
       when: not metadata_json_file.stat.exists
 
     - name: Does cluster kubeconfig exist
+      tags:
+        - 1_ocp_install
       ansible.builtin.stat:
         path: "{{ ocpfolder }}/auth/kubeconfig"
       register: kubeconfig_file
 
     - name: Fail here there is no kubeconfig file
+      tags:
+        - 1_ocp_install
       fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
       when: not kubeconfig_file.stat.exists
 
