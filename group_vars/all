@@ -29,6 +29,7 @@ gpfs_volume_name: "gpfs-volume"
 
 operator_name: purple-storage-rh-operator
 operator_catalog: purple-storage-rh-operator-catalog
+operator_catalog_tag: latest
 operator_registry: quay.io/hybridcloudpatterns
 
 ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
