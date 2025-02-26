@@ -4,10 +4,12 @@ metadata:
   name: purplestorage-sample
   namespace: openshift-operators
 spec:
+  mco_config:
+    create: true
+    labels:
+      machineconfiguration.openshift.io/role: "worker"
   ibm_cnsa_cluster:
     create: true
+    daemon_nodeSelector:
+      node-role.kubernetes.io/worker: ""
   ibm_cnsa_version: v5.2.2.0
-  machineconfig:
-    labels:
-      machineconfiguration.openshift.io/role: worker
-  pull_secret: ''
