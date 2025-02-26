@@ -16,7 +16,7 @@ EBS volume and attach it to the three workers.
 4. Make sure you read `group_vars/all` and have all the files with the secret material done
 5. Run `make ocp-clients`. This will download the needed oc + openshift-install version
    in your home folder under `~/aws-gpfs-playground/<ocp_version>`
-6. Then run either `make install` for the traditional documented steps or `make operator-install` to use the in-development operator
+6. Then run either `make install` for the purple operator install or `make classic-install` to use the traditional method via the steps outlined by Mario in his doc.
 
 
 ## Deletion

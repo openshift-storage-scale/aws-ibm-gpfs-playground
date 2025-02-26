@@ -4,7 +4,7 @@
   gather_facts: false
   become: false
   vars:
-    use_operator: false
+    use_operator: true
   vars_files:
     # Use this to override stuff that won't be committed to git
     - ./overrides.yml
