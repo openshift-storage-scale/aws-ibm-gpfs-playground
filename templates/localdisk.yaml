@@ -1,9 +1,6 @@
 apiVersion: scale.spectrum.ibm.com/v1beta1
 kind: LocalDisk
 metadata:
-  labels:
-    app.kubernetes.io/instance: ibm-spectrum-scale
-    app.kubernetes.io/name: cluster
   name: shareddisk1
   namespace: ibm-spectrum-scale
 spec:
