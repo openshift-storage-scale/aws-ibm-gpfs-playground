@@ -7,7 +7,7 @@ spec:
   local:
     blockSize: 4M
     pools:
-    - name: sharedpool1
+    - name: system
       disks:
       - shareddisk1
     # only 1-way is supported for LFS https://www.ibm.com/docs/en/scalecontainernative/5.2.1?topic=systems-local-file-system#filesystem-spec
