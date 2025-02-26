@@ -11,7 +11,7 @@ spec:
     blockSize: 4M
     pools:
     - disks:
-      - ctlplanessharedlun
+      - shareddisk1
       name: system
     # only 1-way is supported for LFS https://www.ibm.com/docs/en/scalecontainernative/5.2.1?topic=systems-local-file-system#filesystem-spec
     replication: 1-way

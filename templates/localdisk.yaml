@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: cluster
-  name: ctlplanessharedlun
+  name: shareddisk1
   namespace: ibm-spectrum-scale
 spec:
   # FIXME(bandini): the stable symlink gets EPERM from gpfs, so for now this will do
