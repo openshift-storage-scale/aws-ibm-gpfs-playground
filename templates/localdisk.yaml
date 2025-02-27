@@ -11,11 +11,8 @@ spec:
   # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
   nodeConnectionSelector:
     matchExpressions:
-    - key: kubernetes.io/hostname
-      operator: In
-      values:
-      {% for node in worker_nodes %}
-      - {{ node }}
-      {% endfor %}
+    - key: node-role.kubernetes.io/worker
+      operator: Exists
+
   # set below only during testing
   existingDataSkipVerify: true
