@@ -26,6 +26,7 @@ ebs_iops: 5000
 
 gpfs_version: "v5.2.2.x"
 gpfs_volume_name: "gpfs-volume"
+gpfs_shared_lun: "/dev/nvme1n1"
 
 operator_name: purple-storage-rh-operator
 operator_catalog: purple-storage-rh-operator-catalog
