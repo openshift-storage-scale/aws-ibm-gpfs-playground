@@ -8,6 +8,10 @@ spec:
     nodeSelector:
       scale.spectrum.ibm.com/daemon-selector: ""
   daemon:
+    nsdDevicesConfig:
+      localDevicePaths:
+      - devicePath: /dev/disk/by-id/nvme*
+        deviceType: generic
     clusterProfile:
       controlSetxattrImmutableSELinux: "yes"
       enforceFilesetQuotaOnRoot: "yes"

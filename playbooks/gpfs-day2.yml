@@ -18,7 +18,13 @@
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
-    ebs_volid: "{{ volume_info.volumes[0].id }}"
+    ebs_volid: "{{ volume_info.volumes[0].id | replace('-', '') }}"
+
+- name: Debug volumeid fact
+  tags:
+    - 6_gpfs
+  ansible.builtin.debug:
+    msg: "{{ ebs_volid }}"
 
 - name: Get worker nodes names
   tags:

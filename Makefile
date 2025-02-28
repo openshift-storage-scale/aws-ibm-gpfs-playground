@@ -24,7 +24,7 @@ install: ## Install an OCP cluster on AWS using the purple operator
 
 .PHONY: classic-install
 classic-install: ## Install an OCP cluster on AWS the classic way following the gdoc
-	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=false $(EXTRA_VARS) playbooks/classic-install.yml
+	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=false $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: gpfs-cleanup
 gpfs-cleanup: ## Deletes all the GPFS objects (https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes)
