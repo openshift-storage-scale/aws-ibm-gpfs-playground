@@ -6,8 +6,8 @@ metadata:
 spec:
   # FIXME(bandini): the stable symlink gets EPERM from gpfs, so for now this will do
   # note that a node reboot might just rename this devices, so...
-  #device: {{ gpfs_shared_lun }}
-  device: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid }}"
+  # device: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid }}"
+  device: {{ gpfs_shared_lun }}
   node: {{ worker_nodes[0] }}
   # nodeConnectionSelector defines the nodes that have the shared lun directly attached to them
   nodeConnectionSelector:
