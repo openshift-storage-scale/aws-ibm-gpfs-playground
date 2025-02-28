@@ -87,6 +87,7 @@
       ansible.builtin.template:
         src: ../templates/mco.yaml
         dest: "{{ gpfsfolder }}/mco.yaml"
+      when: not (use_operator | bool)
 
     # FIXME:
     # We apply the MCO template right away because that will cause the nodes to
@@ -102,6 +103,7 @@
         {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
       args:
         chdir: "{{ ocpfolder }}"
+      when: not (use_operator | bool)
 
     # FIXME(bandini): Sleep here for a bit so we're sure it is started
     # later we should wait for the mcp's to go in updating status and then
@@ -111,6 +113,7 @@
         - 1_ocp_install
       ansible.builtin.pause:
         minutes: 1
+      when: not (use_operator | bool)
 
     - name: Speed up MCO
       tags:
@@ -121,6 +124,7 @@
         oc patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
       args:
         chdir: "{{ ocpfolder }}"
+      when: not (use_operator | bool)
 
     - name: Wait for MCP to settle
       tags:
@@ -140,6 +144,7 @@
       delay: 90
       register: mcp_ready
       until: mcp_ready is not failed
+      when: not (use_operator | bool)
 
     # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Gather security group info for workers
@@ -216,11 +221,11 @@
 
     # Installs GPFS without the purple operator
     - ansible.builtin.import_tasks: gpfs.yml
-      when: not use_operator
+      when: not (use_operator | bool)
 
     # Installs GPFS with the purple operator
     - ansible.builtin.import_tasks: operator-install.yml
-      when: use_operator
+      when: (use_operator | bool)
 
     # Creates localdisk + filesystem + test environment
     - ansible.builtin.import_tasks: gpfs-day2.yml
