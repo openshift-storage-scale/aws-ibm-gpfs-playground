@@ -83,7 +83,7 @@
 
     - name: Template mco file
       tags:
-        - 1_ocp_install
+        - 1_ocp_install_mco
       ansible.builtin.template:
         src: ../templates/mco.yaml
         dest: "{{ gpfsfolder }}/mco.yaml"
@@ -96,7 +96,7 @@
     # symlink. This way we can just use /dev/nvme1n1 across the nodes
     - name: Apply MCO template
       tags:
-        - 1_ocp_install
+        - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -110,14 +110,14 @@
     # wait for the finished condition
     - name: Wait a bit for MCP to start
       tags:
-        - 1_ocp_install
+        - 1_ocp_install_mco
       ansible.builtin.pause:
         minutes: 1
       when: not (use_operator | bool)
 
     - name: Speed up MCO
       tags:
-        - 1_ocp_install
+        - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
@@ -128,7 +128,7 @@
 
     - name: Wait for MCP to settle
       tags:
-        - 1_ocp_install
+        - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG=./auth/kubeconfig
