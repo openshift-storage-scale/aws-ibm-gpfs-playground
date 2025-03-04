@@ -12,4 +12,4 @@ spec:
     create: true
     daemon_nodeSelector:
       node-role.kubernetes.io/worker: ""
-  ibm_cnsa_version: v5.2.2.0
+  ibm_cnsa_version: {{ gpfs_cnsa_version }}
