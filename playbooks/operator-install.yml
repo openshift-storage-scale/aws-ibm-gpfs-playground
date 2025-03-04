@@ -1,3 +1,11 @@
+- name: Create gpfs folder
+  tags:
+    - 4_gpfs
+  ansible.builtin.file:
+    path: "{{ gpfsfolder }}"
+    state: directory
+    recurse: true
+
 - name: Template catalogsource
   ansible.builtin.template:
     src: ../templates/operator-catalog.yaml
