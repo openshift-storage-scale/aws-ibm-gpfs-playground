@@ -7,7 +7,7 @@
     use_operator: true
   vars_files:
     # Use this to override stuff that won't be committed to git
-    - ./overrides.yml
+    - ../overrides.yml
   tasks:
     - name: Create working folder
       tags:

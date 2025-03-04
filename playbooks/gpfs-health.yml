@@ -4,7 +4,7 @@
   become: false
   vars_files:
     # Use this to override stuff that won't be committed to git
-    - ./overrides.yml
+    - ../overrides.yml
   tasks:
   - name: Get worker nodes names
     ansible.builtin.shell: |
