@@ -47,5 +47,5 @@ openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json') }}"
 # Only needed if you do not use the purple operator
 ibmpullsecret: "{{ lookup('file', '~/.ibmpullsecret') }}"
-kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass') }}"
+kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore') }}"
 ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"

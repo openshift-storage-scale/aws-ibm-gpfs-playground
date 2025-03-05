@@ -31,21 +31,6 @@
         src: ../templates/full-cluster-install-config.j2.yaml
         dest: "{{ ocpfolder }}/install-config.yaml"
       when: not metadata_json_file.stat.exists
-
-    - name: Set kubeadmin password fact
-      tags:
-        - 1_ocp_install
-      ansible.builtin.shell: |
-        python -c 'import bcrypt; print(bcrypt.hashpw(b"{{ kubeadmin_pass }}", bcrypt.gensalt(rounds=10)).decode())' | base64 -w0
-      register:
-        hashed_password_out
-
-    - name: Set hashed password fact
-      tags:
-        - 1_ocp_install
-      ansible.builtin.set_fact:
-        hashed_password: "{{ hashed_password_out.stdout }}"
-
     - name: Install ocp cluster
       tags:
         - 1_ocp_install
@@ -70,16 +55,32 @@
       fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
       when: not kubeconfig_file.stat.exists
 
-    - name: Set kubeadmin password
+    - name: Set kubeadmin password fact
       tags:
         - 1_ocp_install
-      ansible.builtin.shell: |
-        set -e
-        chmod 0600 ./auth/kubeconfig
-        export KUBECONFIG=./auth/kubeconfig
-        {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
-      args:
-        chdir: "{{ ocpfolder }}"
+      when: "{{ kubeadmin_pass | length > 0 }}"
+      block:
+        - name: Encrypt kubeadmin password
+          ansible.builtin.shell: |
+            python -c 'import bcrypt; print(bcrypt.hashpw(b"{{ kubeadmin_pass }}", bcrypt.gensalt(rounds=10)).decode())' | base64 -w0
+          register:
+            hashed_password_out
+        - name: Set hashed password fact
+          tags:
+            - 1_ocp_install
+          ansible.builtin.set_fact:
+            hashed_password: "{{ hashed_password_out.stdout }}"
+
+        - name: Set kubeadmin password
+          tags:
+            - 1_ocp_install
+          ansible.builtin.shell: |
+            set -e
+            chmod 0600 ./auth/kubeconfig
+            export KUBECONFIG=./auth/kubeconfig
+            {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
+          args:
+            chdir: "{{ ocpfolder }}"
 
     - name: Template mco file
       tags:
