@@ -42,6 +42,23 @@
   ansible.builtin.set_fact:
     worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
+- name: Figure out the realdevice on worker_0
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG=./auth/kubeconfig
+    {{ oc_bin }} debug node/{{ worker_nodes[0] }} -- chroot /host sh -c "readlink -f /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid }}" 2>/tmp/realdevice_stderr
+  register: realdevice_raw
+  args:
+    chdir: "{{ ocpfolder }}"
+
+- name: Set device name for worker_0
+  tags:
+    - 6_gpfs
+  ansible.builtin.set_fact:
+    realdevice: "{{ realdevice_raw.stdout }}"
+
 - name: Template the localdisk
   tags:
     - 6_gpfs
