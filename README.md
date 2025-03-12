@@ -8,7 +8,23 @@ EBS volume and attach it to the three workers.
 
 1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml`
 2. Make sure your aws credentials and aws cli are in place and working
-3. Tweak override.yml, uncomment and tweak at least the following lines:
+3. Run the following to create an `override.yml`. 
+```cat > overrides.yml<<EOF
+# ocp_domain: "aws.validatedpatterns.io"
+ocp_cluster_name: "gpfs-bandini"
+# ocp_worker_count: 3
+# ocp_worker_type: "m5.2xlarge"
+# ocp_master_count: 3
+# ocp_master_type: "m5.2xlarge"
+# ocp_az: "eu-central-1a"
+# ocp_region: "eu-central-1"
+
+# gpfs_version: "v5.2.2.x"
+# ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"
+EOF
+```
+
+Change it by uncommenting and tweaking at least the following lines:
    - `ocp_domain`
    - `ocp_cluster_name`
    - `ocp_az`

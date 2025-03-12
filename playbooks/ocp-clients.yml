@@ -1,44 +1,51 @@
 ---
 - name: Mirror all tools listed in ocp_versions
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   become: false
   tasks:
     - name: Create mirror folders
       ansible.builtin.file:
-        path: "{{ basefolder }}/{{ item }}"
+        path: "{{ basefolder }}/{{ ocp_version }}"
         state: directory
         recurse: true
-      with_items: "{{ ocp_versions }}"
+
+    - name: Set OC facts to download bits (Mac OSX)
+      ansible.builtin.set_fact:
+        oc_client_url: "{{ openshift_mirror }}/{{ ocp_version }}/openshift-client-mac-arm64.tar.gz"
+        oc_install_url: "{{ openshift_mirror }}/{{ ocp_version }}/openshift-install-mac-arm64.tar.gz"
+      when: ansible_facts['os_family'] == "Darwin"
+
+    - name: Set OC facts to download bits (Linux)
+      ansible.builtin.set_fact:
+        oc_client_url: "{{ openshift_mirror }}/{{ ocp_version }}/openshift-client-linux.tar.gz"
+        oc_install_url: "{{ openshift_mirror }}/{{ ocp_version }}/openshift-install-linux.tar.gz"
+      when: ansible_facts['os_family'] == "RedHat" or ansible_facts['os_family'] == "Debian" 
 
     - name: Download oc
       ansible.builtin.get_url:
-        url: "{{ openshift_mirror }}/{{ item }}/openshift-client-linux.tar.gz"
-        dest: "{{ basefolder }}/{{ item }}/openshift-client-linux.tar.gz"
+        url: "{{ oc_client_url }}"
+        dest: "{{ basefolder }}/{{ ocp_version }}/openshift-client.tar.gz"
         mode: "0640"
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
-      with_items: "{{ ocp_versions }}"
 
     - name: Download openshift-install
       ansible.builtin.get_url:
-        url: "{{ openshift_mirror }}/{{ item }}/openshift-install-linux.tar.gz"
-        dest: "{{ basefolder }}/{{ item }}/openshift-install-linux.tar.gz"
+        url: "{{ oc_install_url }}"
+        dest: "{{ basefolder }}/{{ ocp_version }}/openshift-install.tar.gz"
         mode: "0640"
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
-      with_items: "{{ ocp_versions }}"
 
     - name: Uncompress oc
       ansible.builtin.unarchive:
-        src: "{{ basefolder }}/{{ item }}/openshift-client-linux.tar.gz"
-        dest: "{{ basefolder }}/{{ item }}"
+        src: "{{ basefolder }}/{{ ocp_version }}/openshift-client.tar.gz"
+        dest: "{{ basefolder }}/{{ ocp_version }}"
         remote_src: true
-      with_items: "{{ ocp_versions }}"
 
     - name: Uncompress openshift install
       ansible.builtin.unarchive:
-        src: "{{ basefolder }}/{{ item }}/openshift-install-linux.tar.gz"
-        dest: "{{ basefolder }}/{{ item }}"
+        src: "{{ basefolder }}/{{ ocp_version }}/openshift-install.tar.gz"
+        dest: "{{ basefolder }}/{{ ocp_version }}"
         remote_src: true
-      with_items: "{{ ocp_versions }}"

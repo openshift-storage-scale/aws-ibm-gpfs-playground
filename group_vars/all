@@ -1,10 +1,4 @@
 ---
-# ocp_versions is only used by the ocp-mirror target to mirror locally all the versions and uncompress them *once*
-ocp_versions:
-#  - "4.16.34"
-  - "4.17.17"
-#  - "4.18.0-rc.8"
-
 # Default version to be used, run "make ocp-versions" to see which are the latest
 # ones and download them with "make ocp-clients"
 ocp_version: "4.17.17"
