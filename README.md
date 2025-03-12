@@ -6,7 +6,8 @@ Here are the steps to deploy OCP + GPFS. These steps will create an OCP
 cluster with 3 master + 3 workers by default and then will create a multiattach
 EBS volume and attach it to the three workers.
 
-1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml`
+1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml` and also that you have the httpd tools installed
+ (httpd-tools on Fedora or `brew install httpd` on MacOSX)
 2. Make sure your aws credentials and aws cli are in place and working
 3. Run the following to create an `override.yml`. 
 ```cat > overrides.yml<<EOF
