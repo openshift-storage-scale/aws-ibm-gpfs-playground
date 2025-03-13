@@ -1,3 +1,18 @@
+# we need to label the workers so the localdisk
+- name: Label the workers
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG=./auth/kubeconfig
+    for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
+    do
+      {{ oc_bin }} label ${node} scale.spectrum.ibm.com/role=storage
+      {{ oc_bin }} label ${node} scale.spectrum.ibm.com/daemon-selector=""
+    done
+  args:
+    chdir: "{{ ocpfolder }}"
+
 - name: Get the Volume ID by Tag Name again
   tags:
     - 6_gpfs
