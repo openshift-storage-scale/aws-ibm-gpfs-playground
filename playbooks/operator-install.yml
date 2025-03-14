@@ -44,23 +44,23 @@
   args:
     chdir: "{{ ocpfolder }}"
 
-- name: Template purplestorage
+- name: Template storagescale
   ansible.builtin.template:
-    src: ../templates/purplestorage.yaml
-    dest: "{{ gpfsfolder }}/purplestorage.yaml"
+    src: ../templates/storagescale.yaml
+    dest: "{{ gpfsfolder }}/storagescale.yaml"
   tags:
     - 5_operator
 
-- name: Apply purplestorage
+- name: Apply storagescale
   tags:
     - 5_operator
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG=./auth/kubeconfig
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/purplestorage.yaml"
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/storagescale.yaml"
   retries: 10
   delay: 20
-  register: purplestorage_ready
-  until: purplestorage_ready is not failed
+  register: storagescale_ready
+  until: storagescale_ready is not failed
   args:
     chdir: "{{ ocpfolder }}"

@@ -9,25 +9,25 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-  - name: Delete the purplestorage
+  - name: Delete the storagescale
     tags:
       - 1_cleanup
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG=./auth/kubeconfig
-      {{ oc_bin }} delete -f "{{ gpfsfolder }}/purplestorage.yaml"
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/storagescale.yaml"
     args:
       chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
-    register: purplestorage_ready
-    until: purplestorage_ready is not failed
+    register: storagescale_ready
+    until: storagescale_ready is not failed
     ignore_errors: true
 
-  - name: Debug purplestorage removal errors
+  - name: Debug storagescale removal errors
     ansible.builtin.debug:
-      msg: "{{ purplestorage_ready.stdout }}"
-    when: purplestorage_ready is failed
+      msg: "{{ storagescale_ready.stdout }}"
+    when: storagescale_ready is failed
 
   - name: Delete the test deployment
     tags:
