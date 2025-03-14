@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{ operator_namesspace }}
+  name: {{ operator_namespace }}
 spec:
 ---
 apiVersion: operators.coreos.com/v1alpha1

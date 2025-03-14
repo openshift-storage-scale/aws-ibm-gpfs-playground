@@ -28,7 +28,7 @@ gpfs_cnsa_version: "v5.2.2.1"
 operator_name: openshift-storage-scale-operator
 operator_namespace: openshift-storage-scale
 operator_catalog: test-storage-scale-operator
-operator_catalog_tag: latest
+operator_catalog_tag: stable
 operator_registry: quay.io/openshift-storage-scale
 
 ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
