@@ -27,7 +27,7 @@ gpfs_cnsa_version: "v5.2.2.1"
 
 operator_name: openshift-storage-scale-operator
 operator_namespace: openshift-storage-scale
-operator_catalog: test-storage-scale-operator
+operator_catalog: openshift-storage-scale-catalog
 operator_catalog_tag: stable
 operator_registry: quay.io/openshift-storage-scale
 

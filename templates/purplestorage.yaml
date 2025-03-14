@@ -1,8 +1,8 @@
-apiVersion: purple.purplestorage.com/v1alpha1
-kind: PurpleStorage
+apiVersion: scale.storage.openshift.io/v1alpha1
+kind: StorageScale
 metadata:
-  name: purplestorage-sample
-  namespace: openshift-operators
+  name: storagescale-sample
+  namespace: openshift-storage-scale
 spec:
   mco_config:
     create: true
