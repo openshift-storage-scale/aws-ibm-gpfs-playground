@@ -25,10 +25,11 @@ gpfs_shared_lun: "/dev/nvme1n1"
 # Version installed when using the purple operator
 gpfs_cnsa_version: "v5.2.2.1"
 
-operator_name: purple-storage-rh-operator
-operator_catalog: purple-storage-rh-operator-catalog
+operator_name: openshift-storage-scale-operator
+operator_namespace: openshift-storage-scale
+operator_catalog: test-storage-scale-operator
 operator_catalog_tag: latest
-operator_registry: quay.io/hybridcloudpatterns
+operator_registry: quay.io/openshift-storage-scale
 
 ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
 ocp_maj_min_version_dashed: "{{ ocp_maj_min_version | replace('.', '-') }}"
