@@ -1,9 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ operator_namespace }}
+spec:
+---
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
-  name: test-purplestorage-operator
+  name: test-storage-scale-operator
   namespace: openshift-marketplace
 spec:
-  displayName: Test Purple Storage Operator
+  displayName: Test Storage Scale Operator
   sourceType: grpc
   image: "{{ operator_registry }}/{{ operator_catalog }}:{{ operator_catalog_tag }}"
