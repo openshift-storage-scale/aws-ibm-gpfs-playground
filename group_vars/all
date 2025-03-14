@@ -22,7 +22,7 @@ ebs_iops: 5000
 gpfs_version: "v5.2.2.x"
 gpfs_volume_name: "gpfs-volume"
 gpfs_shared_lun: "/dev/nvme1n1"
-# Version installed when using the purple operator
+# Version installed when using the openshift-storage-scale operator
 gpfs_cnsa_version: "v5.2.2.1"
 
 operator_name: openshift-storage-scale-operator
@@ -40,7 +40,7 @@ gpfsfolder: "{{ basefolder }}/gpfs"
 tempfolder: "/tmp/aws-gpfs-temp-folder"
 openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json') }}"
-# Only needed if you do not use the purple operator
+# Only needed if you do not use the openshift-storage-scale operator
 ibmpullsecret: "{{ lookup('file', '~/.ibmpullsecret') }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore') }}"
 ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"
