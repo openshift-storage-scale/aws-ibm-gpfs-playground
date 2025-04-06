@@ -13,3 +13,5 @@ spec:
     daemon_nodeSelector:
       node-role.kubernetes.io/worker: ""
   ibm_cnsa_version: {{ gpfs_cnsa_version }}
+  storagedevicediscovery:
+    create: true
