@@ -14,6 +14,7 @@ EBS volume and attach it to the three workers.
 cat > overrides.yml<<EOF
 # ocp_domain: "aws.validatedpatterns.io"
 ocp_cluster_name: "gpfs-bandini"
+gpfs_volume_name: "bandini-volume"
 # ocp_worker_count: 3
 # ocp_worker_type: "m5.2xlarge"
 # ocp_master_count: 3
