@@ -7,9 +7,9 @@ spec:
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
-  name: test-storage-scale-operator
+  name: test-fusion-access-operator
   namespace: openshift-marketplace
 spec:
-  displayName: Test Storage Scale Operator
+  displayName: Test Fusion Access Operator
   sourceType: grpc
   image: "{{ operator_registry }}/{{ operator_catalog }}:{{ operator_catalog_tag }}"
