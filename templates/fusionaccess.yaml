@@ -1,8 +1,8 @@
-apiVersion: scale.storage.openshift.io/v1alpha1
-kind: StorageScale
+apiVersion: fusion.storage.openshift.io/v1alpha1
+kind: FusionAccess
 metadata:
-  name: storagescale-sample
-  namespace: openshift-storage-scale
+  name: fusionaccess-sample
+  namespace: openshift-fusion-access
 spec:
   mco_config:
     create: true

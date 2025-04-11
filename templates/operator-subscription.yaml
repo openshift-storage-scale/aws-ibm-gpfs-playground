@@ -7,13 +7,13 @@ spec:
   channel: alpha
   installPlanApproval: Automatic
   name: {{ operator_name }}
-  source: test-storage-scale-operator
+  source: test-fusion-access-operator
   sourceNamespace: openshift-marketplace
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  name: storage-scale-operator-group
+  name: fusion-access-operator-group
   namespace: {{ operator_namespace }}
 spec:
   upgradeStrategy: Default

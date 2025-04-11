@@ -9,25 +9,25 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-  - name: Delete the storagescale
+  - name: Delete the fusionaccess
     tags:
       - 1_cleanup
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG=./auth/kubeconfig
-      {{ oc_bin }} delete -f "{{ gpfsfolder }}/storagescale.yaml"
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/fusionaccess.yaml"
     args:
       chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
-    register: storagescale_ready
-    until: storagescale_ready is not failed
+    register: fusionaccess_ready
+    until: fusionaccess_ready is not failed
     ignore_errors: true
 
-  - name: Debug storagescale removal errors
+  - name: Debug fusionaccess removal errors
     ansible.builtin.debug:
-      msg: "{{ storagescale_ready.stdout }}"
-    when: storagescale_ready is failed
+      msg: "{{ fusionaccess_ready.stdout }}"
+    when: fusionaccess_ready is failed
 
   - name: Delete the test deployment
     tags:

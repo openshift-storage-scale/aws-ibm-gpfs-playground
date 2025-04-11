@@ -44,23 +44,23 @@
   args:
     chdir: "{{ ocpfolder }}"
 
-- name: Template storagescale
+- name: Template fusionaccess
   ansible.builtin.template:
-    src: ../templates/storagescale.yaml
-    dest: "{{ gpfsfolder }}/storagescale.yaml"
+    src: ../templates/fusionaccess.yaml
+    dest: "{{ gpfsfolder }}/fusionaccess.yaml"
   tags:
     - 5_operator
 
-- name: Apply storagescale
+- name: Apply fusionaccess
   tags:
     - 5_operator
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG=./auth/kubeconfig
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/storagescale.yaml"
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/fusionaccess.yaml"
   retries: 10
   delay: 20
-  register: storagescale_ready
-  until: storagescale_ready is not failed
+  register: fusionaccess_ready
+  until: fusionaccess_ready is not failed
   args:
     chdir: "{{ ocpfolder }}"

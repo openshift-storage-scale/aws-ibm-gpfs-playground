@@ -19,7 +19,7 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/ocp-clients.yml
 
 .PHONY: install
-install: ## Install an OCP cluster on AWS using the openshift-storage-scale operator
+install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: classic-install
