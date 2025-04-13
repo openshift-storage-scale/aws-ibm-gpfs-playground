@@ -62,7 +62,7 @@ controlPlane:
        - {{ ocp_az }}
   replicas: 3
 metadata:
-  name: {{ ocp_cluster_name }}
+  name: gpfs-demo
 networking:
   clusterNetwork:
   - cidr: 10.128.0.0/14
