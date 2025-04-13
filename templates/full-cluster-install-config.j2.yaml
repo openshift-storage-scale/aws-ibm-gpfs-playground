@@ -1,4 +1,4 @@
-{% if not power_ninety %}
+{% if not power_ninety | bool %}
 apiVersion: v1
 baseDomain: {{ ocp_domain }}
 compute:

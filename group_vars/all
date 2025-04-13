@@ -18,6 +18,8 @@ ebs_volume_type: "io2"
 ebs_device_name: "/dev/sdd"
 ebs_iops: 5000
 aws_profile: "default"
+# Set this to true when running `make power90` for the demo
+power_ninety: "false"
 
 # Only used when installing without the operator
 gpfs_version: "v5.2.2.x"
