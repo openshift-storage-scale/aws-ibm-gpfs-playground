@@ -1,3 +1,4 @@
+{% if not power_ninety %}
 apiVersion: v1
 baseDomain: {{ ocp_domain }}
 compute:
@@ -22,12 +23,12 @@ controlPlane:
   replicas: {{ ocp_master_count }}
 metadata:
   name: {{ ocp_cluster_name }}
-networking: 
+networking:
   clusterNetwork:
   - cidr: 10.128.0.0/14
     hostPrefix: 23
   machineNetwork:
-  - cidr: 10.0.0.0/16 
+  - cidr: 10.0.0.0/16
   networkType: OVNKubernetes
   serviceNetwork:
   - 172.30.0.0/16
@@ -37,3 +38,44 @@ platform:
 pullSecret: '{{ pullsecret | regex_replace('\'', '"') }}'
 sshKey: |
   {{ ssh_pubkey | regex_replace('"', '') }}
+{% else %}
+apiVersion: v1
+baseDomain: fusionaccess.devcluster.openshift.com
+compute:
+- architecture: {{ ocp_arch }}
+  hyperthreading: Enabled
+  name: worker
+  platform:
+    aws:
+      type: m5.metal
+      zones:
+       - {{ ocp_az }}
+  replicas: 3
+controlPlane:
+  architecture: {{ ocp_arch }}
+  hyperthreading: Enabled
+  name: master
+  platform:
+    aws:
+      type: m5.2xlarge
+      zones:
+       - {{ ocp_az }}
+  replicas: 3
+metadata:
+  name: {{ ocp_cluster_name }}
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.0.0.0/16
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  aws:
+    region: {{ ocp_region }}
+pullSecret: '{{ pullsecret | regex_replace('\'', '"') }}'
+sshKey: |
+  {{ ssh_pubkey | regex_replace('"', '') }}
+{% endif %}

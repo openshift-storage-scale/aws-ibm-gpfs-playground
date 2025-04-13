@@ -22,6 +22,10 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/install.yml
 
+.PHONY: power90
+power90: ## Install an OCP cluster on AWS using the openshift-fusion-access operator for power90 demo
+	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true $(EXTRA_VARS) playbooks/install.yml
+
 .PHONY: classic-install
 classic-install: ## Install an OCP cluster on AWS the classic way following the gdoc
 	ansible-playbook -i hosts $(TAGS_STRING) -e use_operator=false $(EXTRA_VARS) playbooks/install.yml
