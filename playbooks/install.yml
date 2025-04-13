@@ -38,6 +38,7 @@
       ansible.builtin.shell: |
         set -ex
         id
+        {% if power_ninety %}export AWS_PROFILE={{ aws_profile }};{% endif %}
         {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> /tmp/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
       args:
         chdir: "{{ ocpfolder }}"

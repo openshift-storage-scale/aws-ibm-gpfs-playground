@@ -16,6 +16,7 @@
       tags:
         - ocp_destroy
       ansible.builtin.shell: |
+        {% if power_ninety %}export AWS_PROFILE={{ aws_profile }};{% endif %}
         {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
