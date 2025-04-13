@@ -24,7 +24,7 @@ install: ## Install an OCP cluster on AWS using the openshift-fusion-access oper
 
 .PHONY: power90
 power90: ## Install an OCP cluster on AWS using the openshift-fusion-access operator for power90 demo
-	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true $(EXTRA_VARS) playbooks/install.yml
+	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true -e aws_profile=saml $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: classic-install
 classic-install: ## Install an OCP cluster on AWS the classic way following the gdoc
