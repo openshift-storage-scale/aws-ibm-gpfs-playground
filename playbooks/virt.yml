@@ -19,3 +19,35 @@
       - virt-hyperconverged.yaml
       - virt-machine.yaml
       - virt-support.yaml
+
+  - name: Apply subscription
+    ansible.builtin.shell: |
+      set -e
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-support.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+
+  - name: Apply KuberVirt HCO
+    ansible.builtin.shell: |
+      set -e
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-hyperconverged.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 10
+    delay: 30
+    register: virtsub_ready
+    until: virtsub_ready is not failed
+
+  - name: Apply Virtual machine
+    ansible.builtin.shell: |
+      set -e
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-machine.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 10
+    delay: 10
+    register: virtmachine_ready
+    until: virtmachine_ready is not failed
