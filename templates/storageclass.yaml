@@ -2,6 +2,8 @@ kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
   name: localfilesystem
+  annotations:
+    storageclass.kubevirt.io/is-default-virt-class: "true"
 provisioner: spectrumscale.csi.ibm.com
 parameters:
   volBackendFs: localfilesystem
