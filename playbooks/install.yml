@@ -109,6 +109,7 @@
         sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
 
     # FIXME(bandini): use aws module here
+    # When using baremetal these fail so let's not exit here in any case
     - name: Open up default security groups so gpfs can work in AWS
       tags:
         - 2_aws
@@ -116,6 +117,7 @@
         aws --profile {{ aws_profile }} ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
         aws --profile {{ aws_profile }} ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
         aws --profile {{ aws_profile }} ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
+      failed_when: false
 
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
