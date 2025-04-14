@@ -40,7 +40,8 @@ sshKey: |
   {{ ssh_pubkey | regex_replace('"', '') }}
 {% else %}
 apiVersion: v1
-baseDomain: fusionaccess.devcluster.openshift.com
+#baseDomain: fusionaccess.devcluster.openshift.com
+baseDomain: {{ ocp_domain }}
 compute:
 - architecture: {{ ocp_arch }}
   hyperthreading: Enabled
