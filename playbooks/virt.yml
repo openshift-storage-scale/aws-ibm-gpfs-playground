@@ -1,0 +1,21 @@
+---
+- name: Playbook to set up the Openshift Cluster
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    use_operator: true
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  tasks:
+  - name: Template virt stuff
+    tags:
+      9_virt
+    ansible.builtin.template:
+      src: ../templates/{{ item }}
+      dest: "{{ gpfsfolder }}/{{ item }}"
+    loop:
+      - virt-hyperconverged.yaml
+      - virt-machine.yaml
+      - virt-support.yaml

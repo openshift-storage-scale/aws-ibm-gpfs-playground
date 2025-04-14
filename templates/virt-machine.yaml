@@ -1,0 +1,106 @@
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  annotations:
+  labels:
+    vm.kubevirt.io/template: rhel8-server-tiny
+    vm.kubevirt.io/template.revision: "45"
+    vm.kubevirt.io/template.version: v0.11.3
+  name: test-vm
+spec:
+  dataVolumeTemplates:
+  - apiVersion: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    metadata:
+      name: test-vm
+    spec:
+      sourceRef:
+        kind: DataSource
+        name: rhel8
+        namespace: openshift-virtualization-os-images
+      pvc:
+        accessModes:
+          - "ReadWriteMany"
+        resources:
+          requests:
+            storage: "10Gi"
+        storageClassName: ibm-spectrum-scale-sample
+        volumeMode: Filesystem
+  running: true
+  template:
+    metadata:
+      annotations:
+        vm.kubevirt.io/flavor: tiny
+        vm.kubevirt.io/os: rhel8
+        vm.kubevirt.io/workload: server
+      labels:
+        kubevirt.io/domain: test-vm
+        kubevirt.io/size: tiny
+        vm.kubevirt.io/name: test-vm
+    spec:
+      accessCredentials:
+        - sshPublicKey:
+            propagationMethod:
+              configDrive: {}
+            source:
+              secret:
+                secretName: authorizedsshkeys-test-vm
+      domain:
+        cpu:
+          cores: 1
+          sockets: 1
+          threads: 1
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: test-vm
+          - disk:
+              bus: virtio
+            name: cloudinitdisk
+          inputs:
+          - bus: virtio
+            name: tablet
+            type: tablet
+          interfaces:
+          - masquerade: {}
+            name: default
+          networkInterfaceMultiqueue: true
+          rng: {}
+        machine:
+          type: pc-q35-rhel8.4.0
+        resources:
+          requests:
+            memory: 1Gi
+      evictionStrategy: LiveMigrate
+      networks:
+      - name: default
+        pod: {}
+      terminationGracePeriodSeconds: 180
+      volumes:
+      - dataVolume:
+          name: test-vm
+        name: test-vm
+      - name: cloudinitdisk
+        cloudInitConfigDrive:
+          secretRef:
+            name: cloudinit-test-vm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vm-port
+spec:
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: ssh
+      port: 22
+      protocol: TCP
+      targetPort: 22
+  selector:
+    vm.kubevirt.io/name: test-vm
+  sessionAffinity: None
+  type: NodePort
