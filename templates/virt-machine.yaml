@@ -24,7 +24,7 @@ spec:
           - "ReadWriteMany"
         resources:
           requests:
-            storage: "10Gi"
+            storage: "30Gi"
         storageClassName: ibm-spectrum-scale-sample
         volumeMode: Filesystem
   running: true
