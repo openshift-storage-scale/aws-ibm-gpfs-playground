@@ -137,6 +137,14 @@
       ansible.builtin.set_fact:
         worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
 
+    - name: Fail if worker list is empty
+      tags:
+        - 3_ebs
+      ansible.builtin.assert:
+        that:
+          - worker_ec2_ids | length > 0
+        fail_msg: "The list 'worker_ec2_ids' is empty!"
+
     - name: Create EBS io2 volume
       tags:
         - 3_ebs
@@ -151,6 +159,12 @@
         tags:
           Name: "{{ gpfs_volume_name }}"
       register: ebs_volume
+
+    - name: Debug ec2 volume
+      tags:
+        - 3_ebs
+      ansible.builtin.debug:
+        msg: "{{ ebs_volume }}"
 
     - name: Attach EBS volume to workers
       tags:
