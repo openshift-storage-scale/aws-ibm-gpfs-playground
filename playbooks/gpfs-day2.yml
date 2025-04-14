@@ -106,6 +106,27 @@
   register: filesystem_ready
   until: filesystem_ready is not failed
 
+- name: Template our own storageclass
+  tags:
+    - 7_gpfs
+  ansible.builtin.template:
+    src: ../templates/storageclass.yaml
+    dest: "{{ gpfsfolder }}/storage.yaml"
+
+- name: Apply the storageclass
+  tags:
+    - 7_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG=./auth/kubeconfig
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/storageclass.yaml"
+  args:
+    chdir: "{{ ocpfolder }}"
+  retries: 10
+  delay: 30
+  register: storageclass_ready
+  until: storageclass_ready is not failed
+
 - name: Template the snapshotclass
   tags:
     - 7_gpfs
