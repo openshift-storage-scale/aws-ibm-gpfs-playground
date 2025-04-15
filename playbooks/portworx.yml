@@ -9,15 +9,68 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
+  - name: Get the Volume ID by Tag Name again
+    tags:
+      - 9_portworx
+    amazon.aws.ec2_vol_info:
+      region: "{{ ocp_region }}"
+      filters:
+        "tag:Name": "{{ gpfs_volume_name }}"
+    register: volume_info
+  
+  - name: Fail if there is not exactly one ebs volume
+    tags:
+      - 9_portworx
+    ansible.builtin.fail:
+      msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
+    when: volume_info.volumes | length != 1
+  
+  - name: Set volumeid fact
+    tags:
+      - 9_portworx
+    ansible.builtin.set_fact:
+      ebs_volid: "{{ volume_info.volumes[0].id | replace('-', '') }}"
+  
+  - name: Debug volumeid fact
+    tags:
+      - 9_portworx
+    ansible.builtin.debug:
+      msg: "{{ ebs_volid }}"
+  
+  - name: Get worker nodes names
+    tags:
+      - 9_portworx
+    ansible.builtin.shell: |
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
+    args:
+      chdir: "{{ ocpfolder }}"
+    register: worker_nodes_output
+  
+  - name: Set worker nodes names fact
+    tags:
+      - 9_portworx
+    ansible.builtin.set_fact:
+      worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
+  
+  # This actually works for any worker when using the symlink
+  - name: Set device name for worker_0
+    tags:
+      - 9_portworx
+    ansible.builtin.set_fact:
+      realdevice: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid }}"
+
   - name: Template portworx stuff
     tags:
-      9_virt
+      9_portworx
     ansible.builtin.template:
       src: ../templates/{{ item }}
       dest: "{{ gpfsfolder }}/{{ item }}"
     loop:
       - portworx-subscription.yaml
+      - portworx-storagecluster.yaml
 
+          
   - name: Apply portworx subscription
     ansible.builtin.shell: |
       set -e
@@ -25,4 +78,3 @@
       {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-support.yaml"
     args:
       chdir: "{{ ocpfolder }}"
-

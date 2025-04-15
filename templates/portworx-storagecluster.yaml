@@ -1,0 +1,75 @@
+apiVersion: core.libopenstorage.org/v1
+kind: StorageCluster
+metadata:
+  annotations:
+    portworx.io/health-check: passed
+    portworx.io/is-openshift: "true"
+    portworx.io/preflight-check: "false"
+  name: portworx
+  namespace: openshift-operators
+spec:
+  deleteStrategy:
+    type: UninstallAndWipe  
+  csi:
+    enabled: true
+    installSnapshotController: true
+  image: portworx/oci-monitor:3.2.1.2
+  imagePullPolicy: Always
+  kvdb:
+    internal: true
+  monitoring:
+    telemetry:
+      enabled: true
+  placement:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: px/enabled
+            operator: NotIn
+            values:
+            - "false"
+          - key: node-role.kubernetes.io/infra
+            operator: DoesNotExist
+          - key: node-role.kubernetes.io/master
+            operator: DoesNotExist
+          - key: node-role.kubernetes.io/control-plane
+            operator: DoesNotExist
+        - matchExpressions:
+          - key: px/enabled
+            operator: NotIn
+            values:
+            - "false"
+          - key: node-role.kubernetes.io/infra
+            operator: DoesNotExist
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+          - key: node-role.kubernetes.io/worker
+            operator: Exists
+        - matchExpressions:
+          - key: px/enabled
+            operator: NotIn
+            values:
+            - "false"
+          - key: node-role.kubernetes.io/infra
+            operator: DoesNotExist
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+          - key: node-role.kubernetes.io/worker
+            operator: Exists
+  revisionHistoryLimit: 11
+  secretsProvider: k8s
+  startPort: 17001
+  storage:
+    devices:
+    - {{ realdevice }}
+  stork:
+    enabled: true
+  updateStrategy:
+    rollingUpdate:
+      disruption:
+        allow: true
+      maxUnavailable: 1
+    type: RollingUpdate
+  version: 3.2.1.2
+
