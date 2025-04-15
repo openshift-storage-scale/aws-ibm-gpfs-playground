@@ -111,7 +111,7 @@
     - 7_gpfs
   ansible.builtin.template:
     src: ../templates/storageclass.yaml
-    dest: "{{ gpfsfolder }}/storage.yaml"
+    dest: "{{ gpfsfolder }}/storageclass.yaml"
 
 - name: Apply the storageclass
   tags:
