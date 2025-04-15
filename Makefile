@@ -27,8 +27,12 @@ power90: ## Install an OCP cluster on AWS using the openshift-fusion-access oper
 	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true -e ebs_volume_size=300 -e ocp_cluster_name=gpfs-demo -e ocp_az=eu-north-1a -e ocp_region=eu-north-1 -e aws_profile=default $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: power90-virt
-power90-virt: ## Install an OCP cluster on AWS using the openshift-fusion-access operator for power90 demo
+power90-virt: ## Configures the virt bits for power90
 	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true -e ebs_volume_size=300 -e ocp_cluster_name=gpfs-demo -e ocp_az=eu-north-1a -e ocp_region=eu-north-1 -e aws_profile=default $(EXTRA_VARS) playbooks/virt.yml
+
+.PHONY: power90-portworx
+power90-portworx: ## Configures the portworx bits for power90
+	ansible-playbook -i hosts $(TAGS_STRING) -e power_ninety=true -e ebs_volume_size=300 -e ocp_cluster_name=gpfs-demo -e ocp_az=eu-north-1a -e ocp_region=eu-north-1 -e aws_profile=default $(EXTRA_VARS) playbooks/portworx.yml
 
 .PHONY: destroy-power90
 destroy-power90: ## Install an OCP cluster on AWS using the openshift-fusion-access operator for power90 demo
