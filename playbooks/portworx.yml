@@ -104,9 +104,25 @@
     failed_when: false
           
   - name: Apply portworx subscription
+    tags:
+      - 10_portworx
     ansible.builtin.shell: |
       set -e
       export KUBECONFIG=./auth/kubeconfig
-      {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-support.yaml"
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/portworx-subscription.yaml"
     args:
       chdir: "{{ ocpfolder }}"
+
+  - name: Apply portworx storage cluster
+    tags:
+      - 10_portworx
+    ansible.builtin.shell: |
+      set -e
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/portworx-storagecluster.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+    retries: 10
+    delay: 30
+    register: scluster_ready
+    until: scluster_ready is not failed
