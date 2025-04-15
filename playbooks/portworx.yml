@@ -70,6 +70,38 @@
       - portworx-subscription.yaml
       - portworx-storagecluster.yaml
 
+    # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
+  - name: Gather security group info for workers
+    tags:
+      - 9_portworx
+    amazon.aws.ec2_security_group_info:
+      profile: "{{ aws_profile }}"
+      region: "{{ ocp_region }}"
+      filters:
+        "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
+    register: sg_info
+
+  - name: Debug sg_info
+    tags:
+      - 9_portworx
+    ansible.builtin.debug:
+      msg: "{{ sg_info }}"
+
+  - name: Set sg id
+    tags:
+      - 9_portworx
+    ansible.builtin.set_fact:
+      sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
+
+  # FIXME(bandini): use aws module here
+  # When using baremetal these fail so let's not exit here in any case
+  - name: Open up default security groups so gpfs can work in AWS
+    tags:
+      - 9_portworx
+    ansible.builtin.shell: |
+      aws --profile {{ aws_profile }} ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 17001-17020 --source-group {{ sg_worker_id }}
+      aws --profile {{ aws_profile }} ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol udp --port 17002 --source-group {{ sg_worker_id }}
+    failed_when: false
           
   - name: Apply portworx subscription
     ansible.builtin.shell: |
