@@ -1,0 +1,14 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  labels:
+    operators.coreos.com/portworx-certified.openshift-operators: ''
+  name: portworx-certified
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: portworx-certified
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  startingCSV: portworx-operator.v24.2.3

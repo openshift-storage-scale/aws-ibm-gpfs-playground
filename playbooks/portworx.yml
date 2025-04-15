@@ -1,0 +1,28 @@
+---
+- name: Playbook to set up the Portworx
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    use_operator: true
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  tasks:
+  - name: Template portworx stuff
+    tags:
+      9_virt
+    ansible.builtin.template:
+      src: ../templates/{{ item }}
+      dest: "{{ gpfsfolder }}/{{ item }}"
+    loop:
+      - portworx-subscription.yaml
+
+  - name: Apply portworx subscription
+    ansible.builtin.shell: |
+      set -e
+      export KUBECONFIG=./auth/kubeconfig
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-support.yaml"
+    args:
+      chdir: "{{ ocpfolder }}"
+
