@@ -1,7 +1,7 @@
 ---
 # Default version to be used, run "make ocp-versions" to see which are the latest
 # ones and download them with "make ocp-clients"
-ocp_version: "4.17.17"
+ocp_version: "4.18.9"
 
 ocp_domain: "aws.validatedpatterns.io"
 ocp_cluster_name: "gpfs-test"
