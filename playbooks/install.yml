@@ -221,10 +221,6 @@
       loop: "{{ worker_ec2_ids }}"
       when: ebs_volume.volume_id is defined
 
-    # Installs GPFS without the openshift-fusion-access operator
-    - ansible.builtin.import_tasks: gpfs.yml
-      when: not (use_operator | bool)
-
     # Installs GPFS with the openshift-storage-scale operator
     - ansible.builtin.import_tasks: operator-install.yml
       when: (use_operator | bool)
