@@ -13,6 +13,20 @@
       ansible.builtin.debug:
         msg: "{{ ocp_region }}"
 
+    - name: Check if the pull secret file exists
+      tags:
+        - 1_ocp_install
+      stat:
+        path: "{{ ibmpullsecretfile }}"
+      register: ibmpullsecretfile_stat
+
+    - name: Fail if pull secret file does not exist
+      tags:
+        - 1_ocp_install
+      fail:
+        msg: "The pull secret file {{ ibmpullsecretfile }} does not exist!"
+      when: not ibmpullsecretfile_stat.stat.exists
+
     - name: Create working folder
       tags:
         - 1_ocp_install
