@@ -4,14 +4,6 @@ metadata:
   name: fusionaccess-sample
   namespace: openshift-fusion-access
 spec:
-  mco_config:
-    create: true
-    labels:
-      machineconfiguration.openshift.io/role: "worker"
-  ibm_cnsa_cluster:
-    create: true
-    daemon_nodeSelector:
-      node-role.kubernetes.io/worker: ""
   ibm_cnsa_version: {{ gpfs_cnsa_version }}
   storagedevicediscovery:
     create: true

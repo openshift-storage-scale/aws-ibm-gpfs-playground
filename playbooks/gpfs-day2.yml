@@ -13,6 +13,39 @@
   args:
     chdir: "{{ ocpfolder }}"
 
+- name: Template the Fusion Cluster object
+  ansible.builtin.template:
+    src: ../templates/cluster.yaml
+    dest: "{{ gpfsfolder }}/cluster.yaml"
+  tags:
+    - 6_gpfs
+
+- name: Apply the Fusion cluster object
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG=./auth/kubeconfig
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/cluster.yaml"
+  args:
+    chdir: "{{ ocpfolder }}"
+
+- name: Wait for fusion pods
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -e
+    export KUBECONFIG="{{ fullclusterfolder }}/auth/kubeconfig"
+    COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale | grep worker | grep Running | wc -l)
+    NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
+    if [ ${COUNT} != ${NODES} ]; then
+      exit 1
+    fi
+  register: fusion_apply
+  until: fusion_apply is not failed
+  retries: 20
+  delay: 20
+
 - name: Get the Volume ID by Tag Name again
   tags:
     - 6_gpfs

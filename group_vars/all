@@ -41,6 +41,6 @@ tempfolder: "/tmp/aws-gpfs-temp-folder"
 openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json') }}"
 # Only needed if you do not use the openshift-fusion-access operator
-ibmpullsecret: "{{ lookup('file', '~/.ibmpullsecret') }}"
+ibmpullsecretfile: "~/.openshift-storage-pull-authfile.json"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore') }}"
-ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO8CumOo7uGDhSG5gzRdMkej/dBZ3YhhpKweKeyW+iCK michele@oshie"
+ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
