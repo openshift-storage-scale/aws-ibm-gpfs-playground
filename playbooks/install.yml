@@ -7,6 +7,12 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
+    - name: Print AWS Region
+      tags:
+        - 1_ocp_install
+      ansible.builtin.debug:
+        msg: "{{ ocp_region }}"
+
     - name: Create working folder
       tags:
         - 1_ocp_install
