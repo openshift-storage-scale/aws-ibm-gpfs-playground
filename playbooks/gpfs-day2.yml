@@ -36,7 +36,7 @@
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG={{ kubeconfig }}
-    COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale | grep worker | grep Running | wc -l)
+    COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale -l app.kubernetes.io/name=core --no-headers | grep Running | wc -l)
     NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
     if [ ${COUNT} != ${NODES} ]; then
       exit 1
