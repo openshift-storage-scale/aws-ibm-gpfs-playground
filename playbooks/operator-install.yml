@@ -18,10 +18,8 @@
     - 4_operator
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/operator-catalog.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Template subscription
   ansible.builtin.template:
@@ -35,26 +33,22 @@
     - 4_operator
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/operator-subscription.yaml"
   retries: 10
   delay: 20
   register: subscription_ready
   until: subscription_ready is not failed
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Create the pullsecret
   tags:
     - 4_operator
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} create secret -n openshift-fusion-access generic fusion-pullsecret  \
       --from-file=.dockerconfigjson={{ ibmpullsecretfile }} \
       --type=kubernetes.io/dockerconfigjson
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Template fusionaccess
   ansible.builtin.template:
@@ -68,11 +62,9 @@
     - 5_operator
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/fusionaccess.yaml"
   retries: 10
   delay: 20
   register: fusionaccess_ready
   until: fusionaccess_ready is not failed
-  args:
-    chdir: "{{ ocpfolder }}"

@@ -96,10 +96,8 @@
           ansible.builtin.shell: |
             set -e
             chmod 0600 ./auth/kubeconfig
-            export KUBECONFIG=./auth/kubeconfig
+            export KUBECONFIG={{ kubeconfig }}
             {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
-          args:
-            chdir: "{{ ocpfolder }}"
 
     - name: Template mco file
       tags:
@@ -114,10 +112,8 @@
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
+        export KUBECONFIG={{ kubeconfig }}
         {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
-      args:
-        chdir: "{{ ocpfolder }}"
 
     # FIXME(bandini): Sleep here for a bit so we're sure it is started
     # later we should wait for the mcp's to go in updating status and then
@@ -133,25 +129,21 @@
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
+        export KUBECONFIG={{ kubeconfig }}
         {{ oc_bin }} patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
-      args:
-        chdir: "{{ ocpfolder }}"
 
     - name: Wait for MCP to settle
       tags:
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
+        export KUBECONFIG={{ kubeconfig }}
         if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
         if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
-      args:
-        chdir: "{{ ocpfolder }}"
       retries: 30
       delay: 90
       register: mcp_ready

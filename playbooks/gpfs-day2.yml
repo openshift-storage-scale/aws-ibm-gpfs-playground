@@ -4,14 +4,12 @@
     - 6_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
     do
       {{ oc_bin }} label ${node} scale.spectrum.ibm.com/role=storage
       {{ oc_bin }} label ${node} scale.spectrum.ibm.com/daemon-selector=""
     done
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Template the Fusion Cluster object
   ansible.builtin.template:
@@ -25,10 +23,8 @@
     - 6_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/cluster.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
   register: fusion_apply
   until: fusion_apply is not failed
   retries: 20
@@ -39,7 +35,7 @@
     - 6_gpfs
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale | grep worker | grep Running | wc -l)
     NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
     if [ ${COUNT} != ${NODES} ]; then
@@ -49,8 +45,6 @@
   until: fusion_apply is not failed
   retries: 20
   delay: 20
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Get the Volume ID by Tag Name again
   tags:
@@ -85,10 +79,8 @@
   tags:
     - 6_gpfs
   ansible.builtin.shell: |
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
-  args:
-    chdir: "{{ ocpfolder }}"
   register: worker_nodes_output
 
 - name: Set worker nodes names fact
@@ -116,10 +108,8 @@
     - 6_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
   retries: 10
   delay: 30
   register: localdisk_ready
@@ -137,10 +127,8 @@
     - 7_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
   retries: 10
   delay: 30
   register: filesystem_ready
@@ -158,10 +146,8 @@
     - 7_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/snapshot.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
 
 - name: Template the test deployment
   tags:
@@ -175,8 +161,5 @@
     - 8_gpfs
   ansible.builtin.shell: |
     set -ex
-    export KUBECONFIG=./auth/kubeconfig
+    export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/test_consume.yaml"
-  args:
-    chdir: "{{ ocpfolder }}"
-
