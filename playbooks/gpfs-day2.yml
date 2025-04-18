@@ -39,7 +39,7 @@
     - 6_gpfs
   ansible.builtin.shell: |
     set -e
-    export KUBECONFIG="{{ fullclusterfolder }}/auth/kubeconfig"
+    export KUBECONFIG=./auth/kubeconfig
     COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale | grep worker | grep Running | wc -l)
     NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
     if [ ${COUNT} != ${NODES} ]; then
@@ -49,11 +49,14 @@
   until: fusion_apply is not failed
   retries: 20
   delay: 20
+  args:
+    chdir: "{{ ocpfolder }}"
 
 - name: Get the Volume ID by Tag Name again
   tags:
     - 6_gpfs
   amazon.aws.ec2_vol_info:
+    profile: "{{ aws_profile }}"
     region: "{{ ocp_region }}"
     filters:
       "tag:Name": "{{ gpfs_volume_name }}"

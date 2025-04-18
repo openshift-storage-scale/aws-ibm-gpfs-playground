@@ -162,6 +162,7 @@
       tags:
         - 2_aws
       amazon.aws.ec2_security_group_info:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
           "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
@@ -184,15 +185,16 @@
       tags:
         - 2_aws
       ansible.builtin.shell: |
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
 
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
       tags:
         - 3_ebs
       amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
           "tag:Name": "{{ ocp_cluster_name }}*worker*"
