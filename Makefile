@@ -5,6 +5,13 @@ endif
 
 EXTRA_VARS ?=
 
+# When true we set the default to a BM instance for Power90
+POWER90 ?= false
+ifeq ($(POWER90), true)
+	EXTRA_ARGS = "-e @./vars/power90.yaml"
+endif
+
+
 ##@ Common Tasks
 .PHONY: help
 help: ## This help message
@@ -12,27 +19,27 @@ help: ## This help message
 
 .PHONY: ocp-versions
 ocp-versions: ## Prints latest minor versions for ocp
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/print-ocp-versions.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/print-ocp-versions.yml
 
 .PHONY: ocp-clients
 ocp-clients: ## Reads ocp_versions list and makes sure client tools are downloaded and uncompressed
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/ocp-clients.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ocp-clients.yml
 
 .PHONY: install
 install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/install.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/install.yml
 
 .PHONY: gpfs-cleanup
 gpfs-cleanup: ## Deletes all the GPFS objects (https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes)
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/gpfs-cleanup.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/gpfs-cleanup.yml
 
 .PHONY: gpfs-health
 gpfs-health: ## Prints some GPFS healthcheck commands
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/gpfs-health.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/gpfs-health.yml
 
 .PHONY: destroy
 destroy: ## Destroy installed AWS cluster
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/destroy.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/destroy.yml
 
 .PHONY: list-tags
 list-tags: ## Lists all tags in the install playbook

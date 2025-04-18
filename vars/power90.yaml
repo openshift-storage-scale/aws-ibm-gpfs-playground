@@ -1,0 +1,8 @@
+power_ninety: true
+ebs_volume_size: 300
+ocp_cluster_name: gpfs-demo
+ocp_worker_type: m5.metal
+ocp_master_type: m5.2xlarge
+ocp_az: eu-north-1a
+ocp_region: eu-north-1
+aws_profile: default
