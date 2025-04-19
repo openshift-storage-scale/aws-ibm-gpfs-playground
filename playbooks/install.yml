@@ -95,7 +95,7 @@
             - 1_ocp_install
           ansible.builtin.shell: |
             set -e
-            chmod 0600 ./auth/kubeconfig
+            chmod 0600 {{ kubeconfig }}
             export KUBECONFIG={{ kubeconfig }}
             {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
 
