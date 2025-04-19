@@ -7,11 +7,11 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-    - name: Print AWS Region
+    - name: Print AWS infos
       tags:
         - 1_ocp_install
       ansible.builtin.debug:
-        msg: "{{ ocp_region }}"
+        msg: "Region: {{ ocp_region }} - Domain: {{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }}"
 
     - name: Check if the pull secret file exists
       tags:
