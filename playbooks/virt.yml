@@ -46,7 +46,7 @@
         curl -L -o /tmp/virtctl.tar.gz -k https://hyperconverged-cluster-cli-download-openshift-cnv.apps.{{ ocp_cluster_name }}.{{ ocp_domain }}/amd64/linux/virtctl.tar.gz
         pushd /tmp
         tar xf virtctl.tar.gz
-        mv virtctl "{{ oc_dir }}"
+        mv virtctl "{{ virtctl_bin }}"
         popd
       register: virt_apply
       until: virt_apply is not failed
