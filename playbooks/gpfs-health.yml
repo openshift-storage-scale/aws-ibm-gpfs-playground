@@ -8,10 +8,8 @@
   tasks:
   - name: Get worker nodes names
     ansible.builtin.shell: |
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
-    args:
-      chdir: "{{ ocpfolder }}"
     register: worker_nodes_output
 
   - name: Set worker nodes names fact
@@ -21,12 +19,10 @@
   - name: Run mmlscluster
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} exec $(oc get pods -lapp.kubernetes.io/name=core \
         -ojsonpath="{.items[0].metadata.name}" -n ibm-spectrum-scale)  \
         -c gpfs -n ibm-spectrum-scale -- mmlscluster
-    args:
-      chdir: "{{ ocpfolder }}"
     failed_when: false
     register: mmlscluster
 
@@ -37,12 +33,10 @@
   - name: Run mmlsnsd -M
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} exec $(oc get pods -lapp.kubernetes.io/name=core \
         -ojsonpath="{.items[0].metadata.name}" -n ibm-spectrum-scale)  \
         -c gpfs -n ibm-spectrum-scale -- mmlsnsd -M
-    args:
-      chdir: "{{ ocpfolder }}"
     failed_when: false
     register: mmlsnsd
 

@@ -3,12 +3,30 @@
   hosts: localhost
   gather_facts: false
   become: false
-  vars:
-    use_operator: true
   vars_files:
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
+    - name: Print AWS Region
+      tags:
+        - 1_ocp_install
+      ansible.builtin.debug:
+        msg: "{{ ocp_region }}"
+
+    - name: Check if the pull secret file exists
+      tags:
+        - 1_ocp_install
+      stat:
+        path: "{{ ibmpullsecretfile }}"
+      register: ibmpullsecretfile_stat
+
+    - name: Fail if pull secret file does not exist
+      tags:
+        - 1_ocp_install
+      fail:
+        msg: "The pull secret file {{ ibmpullsecretfile }} does not exist!"
+      when: not ibmpullsecretfile_stat.stat.exists
+
     - name: Create working folder
       tags:
         - 1_ocp_install
@@ -77,11 +95,9 @@
             - 1_ocp_install
           ansible.builtin.shell: |
             set -e
-            chmod 0600 ./auth/kubeconfig
-            export KUBECONFIG=./auth/kubeconfig
+            chmod 0600 {{ kubeconfig }}
+            export KUBECONFIG={{ kubeconfig }}
             {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
-          args:
-            chdir: "{{ ocpfolder }}"
 
     - name: Template mco file
       tags:
@@ -89,23 +105,15 @@
       ansible.builtin.template:
         src: ../templates/mco.yaml
         dest: "{{ gpfsfolder }}/mco.yaml"
-      when: not (use_operator | bool)
 
-    # FIXME:
-    # We apply the MCO template right away because that will cause the nodes to
-    # reboot and only later we add the EBS shared volume
-    # This is because GPFS refuses to read the /dev/disk/by-id/nvme-AMAZON..volid
-    # symlink. This way we can just use /dev/nvme1n1 across the nodes
+    # We apply the MCO template right away as it makes for less errors
     - name: Apply MCO template
       tags:
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
+        export KUBECONFIG={{ kubeconfig }}
         {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
-      args:
-        chdir: "{{ ocpfolder }}"
-      when: not (use_operator | bool)
 
     # FIXME(bandini): Sleep here for a bit so we're sure it is started
     # later we should wait for the mcp's to go in updating status and then
@@ -115,44 +123,38 @@
         - 1_ocp_install_mco
       ansible.builtin.pause:
         minutes: 1
-      when: not (use_operator | bool)
 
     - name: Speed up MCO
       tags:
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
-        oc patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
-      args:
-        chdir: "{{ ocpfolder }}"
-      when: not (use_operator | bool)
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
 
     - name: Wait for MCP to settle
       tags:
         - 1_ocp_install_mco
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG=./auth/kubeconfig
+        export KUBECONFIG={{ kubeconfig }}
         if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
         if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
-      args:
-        chdir: "{{ ocpfolder }}"
       retries: 30
       delay: 90
       register: mcp_ready
       until: mcp_ready is not failed
-      when: not (use_operator | bool)
 
     # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Gather security group info for workers
       tags:
         - 2_aws
       amazon.aws.ec2_security_group_info:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
           "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
@@ -175,15 +177,16 @@
       tags:
         - 2_aws
       ansible.builtin.shell: |
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
-        aws ec2 --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
+        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
 
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
       tags:
         - 3_ebs
       amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
           "tag:Name": "{{ ocp_cluster_name }}*worker*"
@@ -221,13 +224,8 @@
       loop: "{{ worker_ec2_ids }}"
       when: ebs_volume.volume_id is defined
 
-    # Installs GPFS without the openshift-fusion-access operator
-    - ansible.builtin.import_tasks: gpfs.yml
-      when: not (use_operator | bool)
-
     # Installs GPFS with the openshift-storage-scale operator
     - ansible.builtin.import_tasks: operator-install.yml
-      when: (use_operator | bool)
 
     # Creates localdisk + filesystem + test environment
     - ansible.builtin.import_tasks: gpfs-day2.yml

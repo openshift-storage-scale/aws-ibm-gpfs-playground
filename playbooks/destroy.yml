@@ -23,6 +23,7 @@
 
     - name: Get the Volume ID by Tag Name
       amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
           "tag:Name": "{{ gpfs_volume_name }}"
@@ -34,6 +35,7 @@
 
     - name: Delete EBS io2 volume
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         id: "{{ item.id }}"
         state: absent

@@ -14,10 +14,8 @@
       - 1_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/fusionaccess.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
     register: fusionaccess_ready
@@ -34,10 +32,8 @@
       - 1_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/test_consume.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     failed_when: false
 
   - name: Delete the snapshotclass
@@ -45,10 +41,8 @@
       - 1_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/snapshot.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     failed_when: false
 
   - name: Delete the filesystem
@@ -56,10 +50,8 @@
       - 2_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/filesystem.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
     register: filesystem_ready
@@ -78,10 +70,8 @@
       - 2_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/localdisk.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
     register: localdisk_ready
@@ -100,10 +90,8 @@
       - 2_cleanup
     ansible.builtin.shell: |
       set -ex
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/cluster.yaml"
-    args:
-      chdir: "{{ ocpfolder }}"
     retries: 2
     delay: 5
     register: cluster_ready
@@ -119,10 +107,8 @@
     tags:
       - 3_cleanup
     ansible.builtin.shell: |
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
-    args:
-      chdir: "{{ ocpfolder }}"
     register: worker_nodes_output
 
   - name: Set worker nodes names fact
@@ -135,8 +121,6 @@
     tags:
       - 3_cleanup
     ansible.builtin.shell: |
-      export KUBECONFIG=./auth/kubeconfig
+      export KUBECONFIG={{ kubeconfig }}
       {{ oc_bin }} debug node/{{ item }} -T -- chroot /host sh -c "rm -rf /var/mmfs; rm -rf /var/adm/ras"
-    args:
-      chdir: "{{ ocpfolder }}"
     loop: "{{ worker_nodes }}"
