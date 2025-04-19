@@ -1,0 +1,54 @@
+---
+- name: Playbook to set up the virt demo bits
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  tasks:
+    - name: Print AWS infos
+      ansible.builtin.debug:
+        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }}"
+
+    - name: Check if cluster has gpfs installed correctly
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG={{ kubeconfig }}
+        oc get filesystems -A
+
+    - name: Template virt subscription files
+      ansible.builtin.template:
+        src: ../templates/{{ item }}
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - virt-subscription.yaml
+        - virt-hyperconverged.yaml
+
+    - name: Apply virt subscription
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: virt_apply
+      until: virt_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - virt-subscription.yaml
+        - virt-hyperconverged.yaml
+
+    - name: Download virtctl
+      ansible.builtin.shell: |
+        set -ex
+        rm -f /tmp/virtctl.tar.gz
+        curl -L -o /tmp/virtctl.tar.gz -k https://hyperconverged-cluster-cli-download-openshift-cnv.apps.{{ ocp_cluster_name }}.{{ ocp_domain }}/amd64/linux/virtctl.tar.gz
+        pushd /tmp
+        tar xf virtctl.tar.gz
+        mv virtctl "{{ oc_dir }}"
+        popd
+      register: virt_apply
+      until: virt_apply is not failed
+      retries: 10
+      delay: 30
