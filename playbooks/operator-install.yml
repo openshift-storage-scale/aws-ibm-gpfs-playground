@@ -10,6 +10,7 @@
   ansible.builtin.template:
     src: ../templates/operator-catalog.yaml
     dest: "{{ gpfsfolder }}/operator-catalog.yaml"
+    mode: "0644"
   tags:
     - 4_operator
 

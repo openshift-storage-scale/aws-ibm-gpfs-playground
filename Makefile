@@ -8,7 +8,7 @@ EXTRA_VARS ?=
 # When true we set the default to a BM instance for Power90
 POWER90 ?= false
 ifeq ($(POWER90), true)
-	EXTRA_ARGS = "-e @./vars/power90.yaml"
+	EXTRA_ARGS = -e @./vars/power90.yaml
 endif
 
 
@@ -26,8 +26,13 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ocp-clients.yml
 
 .PHONY: install
-install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator
+install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator and configures gpfs on top
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/install.yml
+
+.PHONY: virt
+virt: ## Configures the virt bits (only for POWER90)
+	@if [ "$(POWER90)" = "false" ]; then echo "Error, virt is only for power90"; exit 1; fi
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/virt.yml
 
 .PHONY: gpfs-cleanup
 gpfs-cleanup: ## Deletes all the GPFS objects (https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes)
