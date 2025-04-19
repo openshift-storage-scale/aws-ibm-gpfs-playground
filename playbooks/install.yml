@@ -16,14 +16,14 @@
     - name: Check if the pull secret file exists
       tags:
         - 1_ocp_install
-      stat:
+      ansible.builtin.stat:
         path: "{{ ibmpullsecretfile }}"
       register: ibmpullsecretfile_stat
 
     - name: Fail if pull secret file does not exist
       tags:
         - 1_ocp_install
-      fail:
+      ansible.builtin.fail:
         msg: "The pull secret file {{ ibmpullsecretfile }} does not exist!"
       when: not ibmpullsecretfile_stat.stat.exists
 
@@ -71,13 +71,13 @@
     - name: Fail here there is no kubeconfig file
       tags:
         - 1_ocp_install
-      fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
+      ansible.builtin.fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
       when: not kubeconfig_file.stat.exists
 
     - name: Set kubeadmin password fact
       tags:
         - 1_ocp_install
-      when: "{{ kubeadmin_pass | length > 0 }}"
+      when: kubeadmin_pass | length > 0
       block:
         - name: Encrypt kubeadmin password
           ansible.builtin.shell: |
@@ -226,7 +226,9 @@
       when: ebs_volume.volume_id is defined
 
     # Installs GPFS with the openshift-storage-scale operator
-    - ansible.builtin.import_tasks: operator-install.yml
+    - name: Install gpfs bits
+      ansible.builtin.import_tasks: operator-install.yml
 
     # Creates localdisk + filesystem + test environment
-    - ansible.builtin.import_tasks: gpfs-day2.yml
+    - name: Setup gpfs bits
+      ansible.builtin.import_tasks: gpfs-setup.yml
