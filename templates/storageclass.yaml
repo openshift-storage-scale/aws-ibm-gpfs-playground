@@ -9,3 +9,4 @@ parameters:
 provisioner: spectrumscale.csi.ibm.com
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
+allowVolumeExpansion: true
