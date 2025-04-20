@@ -134,20 +134,36 @@
   register: filesystem_ready
   until: filesystem_ready is not failed
 
-- name: Template the snapshotclass
+- name: Wait for the filesystem to be ready
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} get filesystem -n ibm-spectrum-scale localfilesystem -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size }}"
+  retries: 15
+  delay: 30
+  register: filesystem_ready
+  until: filesystem_ready is not failed
+
+- name: Template the snapshotclass and storageclass
   tags:
     - 7_gpfs
   ansible.builtin.template:
-    src: ../templates/snapshot.yaml
-    dest: "{{ gpfsfolder }}/snapshot.yaml"
+    src: ../templates/{{ item }}
+    dest: "{{ gpfsfolder }}/{{ item }}"
+  loop:
+    - snapshot.yaml
+    - storageclass.yaml
 
-- name: Apply the snapshotclass
+- name: Apply the snapshotclass and storageclass
   tags:
     - 7_gpfs
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/snapshot.yaml"
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+  loop:
+    - snapshot.yaml
+    - storageclass.yaml
 
 - name: Template the test deployment
   tags:
