@@ -138,7 +138,7 @@
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} get filesystem -n ibm-spectrum-scale localfilesystem -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size }}"
+    {{ oc_bin }} get filesystem -n ibm-spectrum-scale {{ gpfs_fs_name }} -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size }}"
   retries: 15
   delay: 30
   register: filesystem_ready
