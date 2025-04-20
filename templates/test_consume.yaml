@@ -13,7 +13,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: "ibm-spectrum-scale-sample"
+  storageClassName: "ibm-test-sc"
   resources:
     requests:
       storage: 200Mi

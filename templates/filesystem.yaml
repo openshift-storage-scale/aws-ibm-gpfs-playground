@@ -1,7 +1,7 @@
 apiVersion: scale.spectrum.ibm.com/v1beta1
 kind: Filesystem
 metadata:
-  name: localfilesystem
+  name: {{ gpfs_fs_name }}
   namespace: ibm-spectrum-scale
 spec:
   local:
