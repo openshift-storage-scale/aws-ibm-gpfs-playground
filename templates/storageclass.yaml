@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ibm-test-sc
+  annotations:
+    storageclass.kubevirt.io/is-default-virt-class: "true"
 parameters:
   volBackendFs: {{ gpfs_fs_name }}
 provisioner: spectrumscale.csi.ibm.com
