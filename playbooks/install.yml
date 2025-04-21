@@ -179,7 +179,6 @@
         - 2_aws
       ansible.builtin.shell: |
         aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
-        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 47443 --source-group {{ sg_worker_id }}
         aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
         aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
 
