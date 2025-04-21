@@ -47,6 +47,7 @@
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} delete secret -n openshift-fusion-access fusion-pullsecret || /bin/true
     {{ oc_bin }} create secret -n openshift-fusion-access generic fusion-pullsecret  \
       --from-file=.dockerconfigjson={{ ibmpullsecretfile }} \
       --type=kubernetes.io/dockerconfigjson
@@ -65,7 +66,27 @@
     set -e
     export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/fusionaccess.yaml"
-  retries: 10
+  retries: 15
+  delay: 30
+  register: fusionaccess_ready
+  until: fusionaccess_ready is not failed
+
+# FIXME(bandini): This networkpolicy seems to be needed on AWS. Still haven't fully root caused it
+- name: Template csi network policy
+  ansible.builtin.template:
+    src: ../templates/networkpolicy-csi.yaml
+    dest: "{{ gpfsfolder }}/networkpolicy-csi.yaml"
+  tags:
+    - 5_operator
+
+- name: Apply csi network policy
+  tags:
+    - 5_operator
+  ansible.builtin.shell: |
+    set -e
+    export KUBECONFIG={{ kubeconfig }}
+    # {{ oc_bin }} apply -f "{{ gpfsfolder }}/networkpolicy-csi.yaml"
+  retries: 5
   delay: 20
   register: fusionaccess_ready
   until: fusionaccess_ready is not failed

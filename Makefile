@@ -28,6 +28,7 @@ ocp-clients: ## Reads ocp_versions list and makes sure client tools are download
 .PHONY: install
 install: ## Install an OCP cluster on AWS using the openshift-fusion-access operator and configures gpfs on top
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/install.yml
+	-@notify.sh "AWS install finished"
 
 .PHONY: virt
 virt: ## Configures the virt bits (only for POWER90)
@@ -45,6 +46,7 @@ gpfs-health: ## Prints some GPFS healthcheck commands
 .PHONY: destroy
 destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/destroy.yml
+	-@notify.sh "AWS destroy finished"
 
 .PHONY: list-tags
 list-tags: ## Lists all tags in the install playbook

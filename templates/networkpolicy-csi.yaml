@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bando-allow-to-scale-bandini
+  namespace: ibm-spectrum-scale-csi
+spec:
+  podSelector: {}  # Applies to all pods in this namespace
+  egress:
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bando-allow-from-csi
+  namespace: ibm-spectrum-scale
+spec:
+  podSelector: {}  # Applies to all pods in this namespace
+  ingress:
+  - from:
+    ports:
+    - port: 443
+      protocol: TCP
+    - port: 47443
+      protocol: TCP
+    - port: 8080
+      protocol: TCP
+    # - namespaceSelector:
+    #     matchLabels:
+    #       name: ibm-spectrum-scale-csi
+  policyTypes:
+  - Ingress
