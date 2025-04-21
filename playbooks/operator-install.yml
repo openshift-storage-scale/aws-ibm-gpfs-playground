@@ -85,7 +85,7 @@
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/networkpolicy-csi.yaml"
+    # {{ oc_bin }} apply -f "{{ gpfsfolder }}/networkpolicy-csi.yaml"
   retries: 5
   delay: 20
   register: fusionaccess_ready
