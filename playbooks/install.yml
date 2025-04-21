@@ -145,7 +145,7 @@
         if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
           exit 1
         fi
-      retries: 30
+      retries: 40
       delay: 90
       register: mcp_ready
       until: mcp_ready is not failed
