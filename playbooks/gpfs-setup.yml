@@ -115,8 +115,6 @@
   register: localdisk_ready
   until: localdisk_ready is not failed
 
-
-
 - name: Template the filesystem
   tags:
     - 7_gpfs
@@ -223,7 +221,7 @@
     tags:
       - 6_gpfs
     ansible.builtin.template:
-      src: ../templates/localdisk.yaml
+      src: ../templates/localdisk2.yaml
       dest: "{{ gpfsfolder }}/localdisk2.yaml"
 
   - name: Apply the localdisk (2)
@@ -237,6 +235,13 @@
     delay: 30
     register: localdisk_ready
     until: localdisk_ready is not failed
+
+  - name: Template the filesystem
+    tags:
+      - 7_gpfs
+    ansible.builtin.template:
+      src: ../templates/filesystem2.yaml
+      dest: "{{ gpfsfolder }}/filesystem2.yaml"
 
   - name: Apply the filesystem (2)
     tags:
