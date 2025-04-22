@@ -34,5 +34,5 @@ spec:
   license:
     accept: true
     license: data-management
-  networkPolicy: {}
-
+  # This is problematic on AWS
+  # networkPolicy: {}
