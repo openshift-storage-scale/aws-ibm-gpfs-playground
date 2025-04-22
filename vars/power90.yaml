@@ -6,3 +6,8 @@ ocp_master_type: m5.4xlarge
 ocp_az: eu-north-1a
 ocp_region: eu-north-1
 aws_profile: default
+
+gpfs_volume_name_two: "gpfs-volume-fast"
+ebs_volume_size_two: 310
+ebs_device_name_two: "/dev/sde"
+ebs_iops_two: 10000
