@@ -208,7 +208,7 @@
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size }}"
         volume_type: "{{ ebs_volume_type }}"
-        multi_attach: yes
+        multi_attach: true
         iops: "{{ ebs_iops }}"
         tags:
           Name: "{{ gpfs_volume_name }}"
@@ -233,7 +233,7 @@
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size_two }}"
         volume_type: "{{ ebs_volume_type_two }}"
-        multi_attach: yes
+        multi_attach: true
         iops: "{{ ebs_iops_two }}"
         tags:
           Name: "{{ gpfs_volume_name_two }}"
