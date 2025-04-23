@@ -135,6 +135,8 @@
   until: filesystem_ready is not failed
 
 - name: Wait for the filesystem to be ready
+  tags:
+    - 7_gpfs
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
@@ -256,6 +258,8 @@
     until: filesystem_ready is not failed
 
   - name: Wait for the filesystem to be ready (2)
+    tags:
+      - 7_gpfs
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG={{ kubeconfig }}

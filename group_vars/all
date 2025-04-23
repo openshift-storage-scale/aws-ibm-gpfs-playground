@@ -24,6 +24,7 @@ ebs_volume_type_two: "io2"
 ebs_device_name_two: "/dev/sdd"
 ebs_iops_two: 5000
 gpfs_volume_name_two: "gpfs-volume-fast"
+gpfs_fs_name_two: "localfilesystem2"
 
 # Only used when installing without the operator
 gpfs_version: "v5.2.2.x"
