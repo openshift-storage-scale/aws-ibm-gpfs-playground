@@ -54,8 +54,6 @@
       delay: 30
 
     - name: Template virt db bits
-      tags:
-      - fuck1
       ansible.builtin.template:
         src: ../templates/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
