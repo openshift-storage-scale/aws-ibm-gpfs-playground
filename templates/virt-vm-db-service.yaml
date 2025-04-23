@@ -2,7 +2,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: mariadb
-  namespace: default
+  namespace: "{{ virt_test_ns }}"
 spec:
   ports:
     - protocol: TCP

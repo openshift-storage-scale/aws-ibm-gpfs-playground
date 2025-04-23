@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: vm-cloudinit
-  namespace: default
+  namespace: "{{ virt_test_ns }}"
 type: Opaque
 stringData:
   userdata: |

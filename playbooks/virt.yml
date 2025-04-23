@@ -54,10 +54,13 @@
       delay: 30
 
     - name: Template virt db bits
+      tags:
+        - virt1
       ansible.builtin.template:
         src: ../templates/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
       loop:
+        - virt-ns.yaml
         - virt-ssh-secret.yaml
         - virt-vm-db-service.yaml
         - virt-vm-db.yaml

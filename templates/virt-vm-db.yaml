@@ -2,6 +2,7 @@ apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
   name: centos-db
+  namespace: "{{ virt_test_ns }}"
 spec:
   dataVolumeTemplates:
     - metadata:
