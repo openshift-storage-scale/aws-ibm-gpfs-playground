@@ -13,6 +13,8 @@ stringData:
     user: fedora
     packages:
     - tmux
+    - vim
+    - libpq
     users: 
     - name: root
       ssh_authorized_keys:
@@ -50,3 +52,4 @@ stringData:
       ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
       cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
       ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
+      dnf remove -y setroubleshoot-server

@@ -14,14 +14,14 @@ spec:
         storage:
           resources:
             requests:
-              storage: '64087042032'
+              storage: '164087042032'
           storageClassName: ibm-test-sc
   instancetype:
     kind: virtualmachineclusterinstancetype
     name: u1.2xlarge
   preference:
     kind: virtualmachineclusterpreference
-    name: centos
+    name: centos.stream10
   runStrategy: Always
   template:
     metadata:
