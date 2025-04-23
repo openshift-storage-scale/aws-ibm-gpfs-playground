@@ -25,7 +25,8 @@ spec:
     completionTimeoutPerGiB: 800
     parallelMigrationsPerCluster: 5
     parallelOutboundMigrationsPerNode: 2
-    progressTimeout: 150
+    progressTimeout: 7200
+    allowPostCopy: true
   uninstallStrategy: BlockUninstallIfWorkloadsExist
   workloadUpdateStrategy:
     batchEvictionInterval: 1m0s
