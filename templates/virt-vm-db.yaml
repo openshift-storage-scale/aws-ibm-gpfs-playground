@@ -1,33 +1,33 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: fedora-db
+  name: centos-db
 spec:
   dataVolumeTemplates:
     - metadata:
-        name: fedora-db-volume
+        name: centos-db-volume
       spec:
         sourceRef:
           kind: DataSource
-          name: fedora
+          name: centos-stream10
           namespace: openshift-virtualization-os-images
         storage:
           resources:
             requests:
-              storage: '34087042032'
+              storage: '64087042032'
           storageClassName: ibm-test-sc
   instancetype:
     kind: virtualmachineclusterinstancetype
     name: u1.2xlarge
   preference:
     kind: virtualmachineclusterpreference
-    name: fedora
+    name: centos
   runStrategy: Always
   template:
     metadata:
       labels:
         network.kubevirt.io/headlessService: headless
-        app: fedora-db
+        app: centos-db
     spec:
       accessCredentials:
         - sshPublicKey:
@@ -52,7 +52,7 @@ spec:
       subdomain: headless
       volumes:
         - dataVolume:
-            name: fedora-db-volume
+            name: centos-db-volume
           name: rootdisk
         - name: cloudinitdisk
           cloudInitNoCloud:
