@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vm-cloudinit
+  namespace: default
+type: Opaque
+stringData:
+  userdata: |
+    #cloud-config
+    chpasswd:
+      expire: false
+    password: {{ vmpass }}
+    user: fedora
+    packages:
+    - tmux
+    users: 
+    - name: root
+      ssh_authorized_keys:
+        - ssh-rsa {{ ssh_pubkey }}
+    # write_files:
+    # - path: /root/.ssh/authorized_keys
+    #   owner: root:root
+    #   permissions: '0600'
+    #   content: |
+    # ssh:
+    #   ssh_pwauth: 1
+    #   disable_root: 0
+    runcmd: 
+    - |
+      #!/bin/bash
+      set -x
+      MAX_RETRIES=5
+      RETRY_INTERVAL=10  # seconds
+      URL="{{ dbperf_tar }}"
+
+      for ((i=1; i<=MAX_RETRIES; i++)); do
+        echo "Attempt $i: curl $URL"
+        curl -fsSL -o /tmp/kit.tar "$URL" && break
+        echo "Failed attempt $i. Retrying in $RETRY_INTERVAL seconds..."
+        sleep "$RETRY_INTERVAL"
+      done
+
+      if [ $i -gt $MAX_RETRIES ]; then
+        echo "All $MAX_RETRIES attempts failed." >&2
+        exit 1
+      fi
+      tar xf /tmp/kit.tar -C /root
+      sed -i -s 's,http://perf1.perf.eng.bos2.dc.redhat.com/sanjay/shak/HammerDB,https://acksyn.org/stuff,g' /root/hammerdb-tpcc-wrapper-scripts/*install-script
+      sed -i '/Please/d' /root/.ssh/authorized_keys
+      ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
+      cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+      ssh-keyscan -H 127.0.0.1 >> ~/.ssh/known_hosts
