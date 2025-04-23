@@ -135,6 +135,8 @@
   until: filesystem_ready is not failed
 
 - name: Wait for the filesystem to be ready
+  tags:
+    - 7_gpfs
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
@@ -179,3 +181,110 @@
     set -ex
     export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/test_consume.yaml"
+
+- block:
+  - name: Get the Volume ID by Tag Name again (2)
+    tags:
+      - 6_gpfs
+    amazon.aws.ec2_vol_info:
+      profile: "{{ aws_profile }}"
+      region: "{{ ocp_region }}"
+      filters:
+        "tag:Name": "{{ gpfs_volume_name_two }}"
+    register: volume_info_two
+
+  - name: Fail if there is not exactly one ebs volume (2)
+    tags:
+      - 6_gpfs
+    ansible.builtin.fail:
+      msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
+    when: volume_info_two.volumes | length != 1
+
+  - name: Set volumeid fact
+    tags:
+      - 6_gpfs
+    ansible.builtin.set_fact:
+      ebs_volid_two: "{{ volume_info_two.volumes[0].id | replace('-', '') }}"
+
+  - name: Debug volumeid fact
+    tags:
+      - 6_gpfs
+    ansible.builtin.debug:
+      msg: "{{ ebs_volid_two }}"
+
+  # This actually works for any worker when using the symlink
+  - name: Set device name for worker_0 (2)
+    tags:
+      - 6_gpfs
+    ansible.builtin.set_fact:
+      realdevice_two: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid_two }}"
+
+  - name: Template the localdisk (2)
+    tags:
+      - 6_gpfs
+    ansible.builtin.template:
+      src: ../templates/localdisk2.yaml
+      dest: "{{ gpfsfolder }}/localdisk2.yaml"
+
+  - name: Apply the localdisk (2)
+    tags:
+      - 6_gpfs
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk2.yaml"
+    retries: 10
+    delay: 30
+    register: localdisk_ready
+    until: localdisk_ready is not failed
+
+  - name: Template the filesystem
+    tags:
+      - 7_gpfs
+    ansible.builtin.template:
+      src: ../templates/filesystem2.yaml
+      dest: "{{ gpfsfolder }}/filesystem2.yaml"
+
+  - name: Apply the filesystem (2)
+    tags:
+      - 7_gpfs
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem2.yaml"
+    retries: 10
+    delay: 30
+    register: filesystem_ready
+    until: filesystem_ready is not failed
+
+  - name: Wait for the filesystem to be ready (2)
+    tags:
+      - 7_gpfs
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} get filesystem -n ibm-spectrum-scale {{ gpfs_fs_name_two }} -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size_two }}"
+    retries: 15
+    delay: 30
+    register: filesystem_ready
+    until: filesystem_ready is not failed
+
+  - name: Template the snapshotclass and storageclass
+    tags:
+      - 7_gpfs
+    ansible.builtin.template:
+      src: ../templates/{{ item }}
+      dest: "{{ gpfsfolder }}/{{ item }}"
+    loop:
+      - storageclass2.yaml
+
+  - name: Apply the snapshotclass and storageclass
+    tags:
+      - 7_gpfs
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+    loop:
+      - storageclass2.yaml
+  when: power_ninety | bool

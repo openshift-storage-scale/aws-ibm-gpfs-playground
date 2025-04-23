@@ -1,6 +1,6 @@
 - name: Create gpfs folder
   tags:
-    - 4_gpfs
+    - 4_operator
   ansible.builtin.file:
     path: "{{ gpfsfolder }}"
     state: directory

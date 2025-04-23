@@ -208,7 +208,7 @@
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size }}"
         volume_type: "{{ ebs_volume_type }}"
-        multi_attach: yes
+        multi_attach: true
         iops: "{{ ebs_iops }}"
         tags:
           Name: "{{ gpfs_volume_name }}"
@@ -224,6 +224,32 @@
         device_name: "{{ ebs_device_name }}"
       loop: "{{ worker_ec2_ids }}"
       when: ebs_volume.volume_id is defined
+
+    - name: Create EBS io2 volume (2)
+      tags:
+        - 3_ebs
+      amazon.aws.ec2_vol:
+        region: "{{ ocp_region }}"
+        availability_zone: "{{ ocp_az }}"
+        volume_size: "{{ ebs_volume_size_two }}"
+        volume_type: "{{ ebs_volume_type_two }}"
+        multi_attach: true
+        iops: "{{ ebs_iops_two }}"
+        tags:
+          Name: "{{ gpfs_volume_name_two }}"
+      register: ebs_volume_two
+      when: power_ninety | bool
+
+    - name: Attach EBS volume to workers (2)
+      tags:
+        - 3_ebs
+      amazon.aws.ec2_vol:
+        region: "{{ ocp_region }}"
+        instance: "{{ item }}"
+        id: "{{ ebs_volume_two.volume_id }}"
+        device_name: "{{ ebs_device_name_two }}"
+      loop: "{{ worker_ec2_ids }}"
+      when: ebs_volume_two.volume_id is defined and power_ninety | bool
 
     # Installs GPFS with the openshift-storage-scale operator
     - name: Install gpfs bits

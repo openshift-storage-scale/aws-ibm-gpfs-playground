@@ -18,6 +18,13 @@ ebs_volume_size: 150
 ebs_volume_type: "io2"
 ebs_device_name: "/dev/sdd"
 ebs_iops: 5000
+# These are unused unless doing the power90
+ebs_volume_size_two: 150
+ebs_volume_type_two: "io2"
+ebs_device_name_two: "/dev/sdd"
+ebs_iops_two: 5000
+gpfs_volume_name_two: "gpfs-volume-fast"
+gpfs_fs_name_two: "localfilesystem2"
 
 # Only used when installing without the operator
 gpfs_version: "v5.2.2.x"
@@ -49,3 +56,4 @@ pullsecret: "{{ lookup('file', '~/.pullsecret.json' | expanduser) }}"
 ibmpullsecretfile: "{{ '~/.openshift-storage-pull-authfile.json' | expanduser }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
+power_ninety: false
