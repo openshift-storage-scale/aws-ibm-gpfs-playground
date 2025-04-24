@@ -35,6 +35,10 @@ virt: ## Configures the virt bits (only for POWER90)
 	@if [ "$(POWER90)" = "false" ]; then echo "Error, virt is only for power90"; exit 1; fi
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/virt.yml
 
+.PHONY: grafana
+grafana: ## Configures the grafana bits
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/grafana.yml
+
 .PHONY: gpfs-cleanup
 gpfs-cleanup: ## Deletes all the GPFS objects (https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes)
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/gpfs-cleanup.yml
