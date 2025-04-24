@@ -32,8 +32,10 @@ gpfs_volume_name: "gpfs-volume"
 gpfs_shared_lun: "/dev/nvme1n1"
 # Version installed when using the openshift-fusion-access operator
 gpfs_cnsa_version: "v5.2.3.0.rc1"
-
 gpfs_fs_name: "localfilesystem1"
+
+grafana_ns: "grafana-for-cnsa"
+grafana_url: "https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/"
 
 operator_name: openshift-fusion-access-operator
 operator_namespace: openshift-fusion-access
