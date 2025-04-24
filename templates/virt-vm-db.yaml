@@ -1,0 +1,61 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: centos-db
+  namespace: "{{ virt_test_ns }}"
+spec:
+  dataVolumeTemplates:
+    - metadata:
+        name: centos-db-volume
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: centos-stream10
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: '164087042032'
+          storageClassName: ibm-test-sc
+  instancetype:
+    kind: virtualmachineclusterinstancetype
+    name: u1.2xlarge
+  preference:
+    kind: virtualmachineclusterpreference
+    name: centos.stream10
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        network.kubevirt.io/headlessService: headless
+        app: centos-db
+    spec:
+      accessCredentials:
+        - sshPublicKey:
+            propagationMethod:
+              noCloud: {}
+            source:
+              secret:
+                secretName: vm-ssh
+      architecture: amd64
+      domain:
+        devices:
+          autoattachPodInterface: false
+          interfaces:
+            - masquerade: {}
+              name: default
+        machine:
+          type: pc-q35-rhel9.4.0
+        resources: {}
+      networks:
+        - name: default
+          pod: {}
+      subdomain: headless
+      volumes:
+        - dataVolume:
+            name: centos-db-volume
+          name: rootdisk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            secretRef:
+              name: vm-cloudinit
