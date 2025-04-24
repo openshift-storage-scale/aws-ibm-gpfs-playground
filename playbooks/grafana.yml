@@ -22,16 +22,16 @@
         set -ex
         oc patch cluster ibm-spectrum-scale --type merge --patch '{"spec": {"grafanaBridge": {"nodeSelector": {"scale.spectrum.ibm.com/daemon-selector": ""}}}}'
         oc new-project {{ grafana_ns }}
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
         oc adm policy add-cluster-role-to-user ibm-spectrum-scale-operator -z grafana-for-cnsa-sa
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/grafana_datasource_deployment/bridge-tls-secret-v5.yaml --namespace={{ grafana_ns }}
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_datasource_deployment/bridge-tls-secret-v5.yaml --namespace={{ grafana_ns }}
         TLS_CERT=`oc get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.crt"]' | tr -d \"`
         TLS_KEY=`oc get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.key"]' | tr -d \"`
         oc get secrets grafana-bridge-tls-cert -n {{ grafana_ns }} -o json | jq ".data[\"tls.key\"] |= \"$TLS_KEY\"" | jq ".data[\"tls.crt\"] |= \"$TLS_CERT\""| oc apply -f -
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/grafana_datasource_deployment/grafana-bridge-datasource-v5.yaml --namespace={{ grafana_ns }}
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_datasource_deployment/grafana-bridge-datasource-v5.yaml --namespace={{ grafana_ns }}
         # Check setup
         oc get GrafanaDataSource bridge-grafanadatasource -n {{ grafana_ns }} -o json | jq '.status'
-        oc apply -f https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-for-grafana/master/examples/openshift_deployment_scripts/examples_for_grafana-operator_v5/provision_dashboard/cnsa-cluster-simple-dashboard-v5.yaml
+        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/provision_dashboard/cnsa-cluster-simple-dashboard-v5.yaml
 
