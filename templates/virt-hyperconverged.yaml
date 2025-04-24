@@ -10,6 +10,13 @@ metadata:
   name: kubevirt-hyperconverged
   namespace: openshift-cnv
 spec:
+  logVerbosityConfig:
+    kubevirt:
+      virtLauncher: 5
+      virtHandler: 5
+      virtController: 5
+      virtAPI: 5
+      virtOperator: 5
   certConfig:
     ca:
       duration: 48h0m0s
