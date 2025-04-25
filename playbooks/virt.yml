@@ -65,3 +65,18 @@
         - virt-vm-db-service.yaml
         - virt-vm-db.yaml
         - virt-vm-cloudinit.yaml
+
+    - name: Apply basic virt templates (except vm itself)
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: virt_apply
+      until: virt_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - virt-ns.yaml
+        - virt-ssh-secret.yaml
+        - virt-vm-db-service.yaml
+        - virt-vm-cloudinit.yaml
