@@ -7,6 +7,9 @@ spec:
   dataVolumeTemplates:
     - metadata:
         name: centos-db-volume
+        # Works around OCPNAS-60 for now
+        annotations:
+          cdi.kubevirt.io/cloneType: copy
       spec:
         sourceRef:
           kind: DataSource
