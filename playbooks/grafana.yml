@@ -15,23 +15,43 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG={{ kubeconfig }}
-        oc get filesystems -A
+        {{ oc_bin }} get filesystems -A
+
+    - name: Grafana namespace
+      ansible.builtin.shell: |
+        {{ oc_bin }} new-project {{ grafana_ns }}
+      failed_when: false
+
+    - name: Template grafana sub
+      ansible.builtin.template:
+        src: ../templates/grafana-sub.yaml
+        dest: "{{ gpfsfolder }}/grafana-sub.yaml"
+
+    - name: Apply grafana sub
+      ansible.builtin.shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} apply -f {{ gpfsfolder }}/grafana-sub.yaml
+
+    - name: Grafana patch bridge
+      ansible.builtin.shell: |
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} patch cluster ibm-spectrum-scale --type merge --patch '{"spec": {"grafanaBridge": {"nodeSelector": {"scale.spectrum.ibm.com/daemon-selector": ""}}}}'
+      failed_when: false
 
     - name: Grafana setup
       ansible.builtin.shell: |
         set -ex
-        oc patch cluster ibm-spectrum-scale --type merge --patch '{"spec": {"grafanaBridge": {"nodeSelector": {"scale.spectrum.ibm.com/daemon-selector": ""}}}}'
-        oc new-project {{ grafana_ns }}
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
-        oc adm policy add-cluster-role-to-user ibm-spectrum-scale-operator -z grafana-for-cnsa-sa
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_datasource_deployment/bridge-tls-secret-v5.yaml --namespace={{ grafana_ns }}
-        TLS_CERT=`oc get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.crt"]' | tr -d \"`
-        TLS_KEY=`oc get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.key"]' | tr -d \"`
-        oc get secrets grafana-bridge-tls-cert -n {{ grafana_ns }} -o json | jq ".data[\"tls.key\"] |= \"$TLS_KEY\"" | jq ".data[\"tls.crt\"] |= \"$TLS_CERT\""| oc apply -f -
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/grafana_datasource_deployment/grafana-bridge-datasource-v5.yaml --namespace={{ grafana_ns }}
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
+        {{ oc_bin }} adm policy add-cluster-role-to-user ibm-spectrum-scale-operator -z grafana-for-cnsa-sa
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_datasource_deployment/bridge-tls-secret-v5.yaml --namespace={{ grafana_ns }}
+        TLS_CERT=`{{ oc_bin }} get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.crt"]' | tr -d \"`
+        TLS_KEY=`{{ oc_bin }} get secret ibm-spectrum-scale-grafana-bridge-service-cert -n ibm-spectrum-scale -o json |jq '.data["tls.key"]' | tr -d \"`
+        {{ oc_bin }} get secrets grafana-bridge-tls-cert -n {{ grafana_ns }} -o json | jq ".data[\"tls.key\"] |= \"$TLS_KEY\"" | jq ".data[\"tls.crt\"] |= \"$TLS_CERT\""| {{ oc_bin }} apply -f -
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_datasource_deployment/grafana-bridge-datasource-v5.yaml --namespace={{ grafana_ns }}
         # Check setup
-        oc get GrafanaDataSource bridge-grafanadatasource -n {{ grafana_ns }} -o json | jq '.status'
-        oc apply -f {{ grafana_url }}/examples_for_grafana-operator_v5/provision_dashboard/cnsa-cluster-simple-dashboard-v5.yaml
+        {{ oc_bin }} get GrafanaDataSource bridge-grafanadatasource -n {{ grafana_ns }} -o json | jq '.status'
+        {{ oc_bin }} apply -f {{ grafana_url }}/provision_dashboard/cnsa-cluster-simple-dashboard-v5.yaml
 
