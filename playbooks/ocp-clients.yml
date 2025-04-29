@@ -22,6 +22,10 @@
         oc_install_url: "{{ openshift_mirror }}/{{ ocp_version }}/openshift-install-linux.tar.gz"
       when: ansible_facts['os_family'] == "RedHat" or ansible_facts['os_family'] == "Debian"
 
+    - name: Print URLs
+      ansible.builtin.debug:
+        msg: "URL to be used: {{ oc_client_url }} - {{ oc_install_url }}"
+
     - name: Download oc
       ansible.builtin.get_url:
         url: "{{ oc_client_url }}"
