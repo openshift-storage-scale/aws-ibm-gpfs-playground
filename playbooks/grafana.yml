@@ -22,15 +22,21 @@
         {{ oc_bin }} new-project {{ grafana_ns }}
       failed_when: false
 
-    - name: Template grafana sub
-      ansible.builtin.template:
-        src: ../templates/grafana-sub.yaml
-        dest: "{{ gpfsfolder }}/grafana-sub.yaml"
-
     - name: Apply grafana sub
       ansible.builtin.shell: |
         export KUBECONFIG={{ kubeconfig }}
-        {{ oc_bin }} apply -f {{ gpfsfolder }}/grafana-sub.yaml
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
+
+    - name: Grafana initial setup
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
+      register: grafana_apply
+      until: grafana_apply is not failed
+      retries: 20
+      delay: 20
 
     - name: Grafana patch bridge
       ansible.builtin.shell: |
@@ -42,8 +48,6 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG={{ kubeconfig }}
-        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/operator-group-v5.yaml --namespace={{ grafana_ns }}
-        {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/subscription-grafana-operator-v5.yaml --namespace={{ grafana_ns }}  
         {{ oc_bin }} apply -f {{ grafana_url }}/grafana_deployment/grafana-instance-for-cnsa-v5.yaml --namespace={{ grafana_ns }}
         {{ oc_bin }} adm policy add-cluster-role-to-user ibm-spectrum-scale-operator -z grafana-for-cnsa-sa
         {{ oc_bin }} apply -f {{ grafana_url }}/grafana_datasource_deployment/bridge-tls-secret-v5.yaml --namespace={{ grafana_ns }}
