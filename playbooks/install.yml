@@ -109,6 +109,12 @@
         src: ../templates/mco.yaml
         dest: "{{ gpfsfolder }}/mco.yaml"
 
+    - name: Template mco file
+      tags:
+        - 1_ocp_install_mco
+      ansible.builtin.shell: |
+        {{ butane_bin }} "{{ gpfsfolder }}/mco.yaml" -o "{{ gpfsfolder }}/99-mco-butaned.yaml"
+
     # We apply the MCO template right away as it makes for less errors
     - name: Apply MCO template
       tags:
@@ -116,7 +122,7 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG={{ kubeconfig }}
-        {{ oc_bin }} apply -f {{ gpfsfolder }}/mco.yaml
+        {{ oc_bin }} apply -f {{ gpfsfolder }}/99-mco-butaned.yaml
 
     # FIXME(bandini): Sleep here for a bit so we're sure it is started
     # later we should wait for the mcp's to go in updating status and then

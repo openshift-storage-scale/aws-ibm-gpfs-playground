@@ -34,6 +34,14 @@
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
 
+    - name: Download butane 
+      ansible.builtin.get_url:
+        url: "{{ butane_url }}"
+        dest: "{{ basefolder }}/{{ ocp_version }}/butane"
+        mode: "0755"
+      environment:
+        https_proxy: "{{ https_proxy | default('') }}"
+
     - name: Download openshift-install
       ansible.builtin.get_url:
         url: "{{ oc_install_url }}"
