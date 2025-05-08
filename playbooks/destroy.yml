@@ -62,4 +62,4 @@
         id: "{{ item.id }}"
         state: absent
       loop: "{{ volume_info_two.volumes }}"
-      when: volume_info_two.volumes | length > 0
+      when: power_ninety | bool and volume_info_two.volumes | length > 0
