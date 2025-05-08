@@ -13,19 +13,19 @@
       ansible.builtin.debug:
         msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }}"
 
-    - name: Check if the pull secret file exists
+    - name: Check if the ibm-entitlement file exists
       tags:
         - 1_ocp_install
       ansible.builtin.stat:
-        path: "{{ ibmpullsecretfile }}"
-      register: ibmpullsecretfile_stat
+        path: "{{ ibmentitlementkeyfile }}"
+      register: ibmentitlementkeyfile_stat
 
-    - name: Fail if pull secret file does not exist
+    - name: Fail if ibm-entitlement file does not exist
       tags:
         - 1_ocp_install
       ansible.builtin.fail:
-        msg: "The pull secret file {{ ibmpullsecretfile }} does not exist!"
-      when: not ibmpullsecretfile_stat.stat.exists
+        msg: "The ibm-entitlement file {{ ibmentitlementkeyfile }} does not exist!"
+      when: not ibmentitlementkeyfile_stat.stat.exists
 
     - name: Create working folder
       tags:
