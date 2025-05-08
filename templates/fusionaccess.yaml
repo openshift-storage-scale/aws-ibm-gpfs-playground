@@ -1,8 +1,8 @@
 apiVersion: fusion.storage.openshift.io/v1alpha1
 kind: FusionAccess
 metadata:
-  name: fusionaccess-sample
-  namespace: openshift-fusion-access
+  name: fusionaccess-object
+  namespace: "{{ operator_namespace }}"
 spec:
   ibm_cnsa_version: {{ gpfs_cnsa_version }}
   storagedevicediscovery:
