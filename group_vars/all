@@ -56,7 +56,7 @@ tempfolder: "/tmp/aws-gpfs-temp-folder"
 openshift_mirror: "{{ 'https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp-dev-preview' if '-ec' in ocp_version else 'https://mirror.openshift.com/pub/openshift-v4/clients/ocp' }}"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json' | expanduser) }}"
 
-ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
+ibmentitlementkeyfile: "{{ lookup('file', '~/.ibm-entitlement-key' | expanduser) }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
 power_ninety: false

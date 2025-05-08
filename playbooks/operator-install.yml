@@ -49,7 +49,7 @@
     export KUBECONFIG={{ kubeconfig }}
     {{ oc_bin }} delete secret -n openshift-fusion-access fusion-pullsecret || true
     {{ oc_bin }} create secret -n openshift-fusion-access generic fusion-pullsecret  \
-      --from-literal=={{ ibmentitlementkeyfile }}
+      --from-literal=ibm-entitlement-key={{ ibmentitlementkeyfile }}
   retries: 10
   delay: 20
   register: secret_ready
