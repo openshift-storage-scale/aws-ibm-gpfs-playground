@@ -3,6 +3,9 @@
   hosts: localhost
   gather_facts: true
   become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
   tasks:
     - name: Create mirror folders
       ansible.builtin.file:
