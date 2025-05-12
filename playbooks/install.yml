@@ -180,15 +180,26 @@
         - 2_aws
       ansible.builtin.set_fact:
         sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
+        sg_worker_name: "{{ sg_info.security_groups[0].group_name }}"
+        sg_worker_description: "{{ sg_info.security_groups[0].description }}"
 
-    # FIXME(bandini): use aws module here
     - name: Open up default security groups so gpfs can work in AWS
       tags:
         - 2_aws
-      ansible.builtin.shell: |
-        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 12345 --source-group {{ sg_worker_id }}
-        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 1191 --source-group {{ sg_worker_id }}
-        aws ec2 --profile {{ aws_profile }} --region {{ ocp_region }} authorize-security-group-ingress --group-id {{ sg_worker_id }} --protocol tcp --port 60000-61000 --source-group {{ sg_worker_id }}
+      amazon.aws.ec2_security_group:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: "{{ sg_worker_name }}"
+        description: "{{ sg_worker_description }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 12345
+              - 1191
+              - 60000-61000
+            group_id: "{{ sg_worker_id }}"
+            rule_desc: GPFS ports
+        purge_rules: false
 
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
@@ -212,6 +223,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size }}"
@@ -226,6 +238,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         instance: "{{ item }}"
         id: "{{ ebs_volume.volume_id }}"
@@ -237,6 +250,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size_two }}"
@@ -252,6 +266,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         instance: "{{ item }}"
         id: "{{ ebs_volume_two.volume_id }}"
