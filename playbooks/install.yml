@@ -223,6 +223,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size }}"
@@ -237,6 +238,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         instance: "{{ item }}"
         id: "{{ ebs_volume.volume_id }}"
@@ -248,6 +250,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         availability_zone: "{{ ocp_az }}"
         volume_size: "{{ ebs_volume_size_two }}"
@@ -263,6 +266,7 @@
       tags:
         - 3_ebs
       amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         instance: "{{ item }}"
         id: "{{ ebs_volume_two.volume_id }}"
