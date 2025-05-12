@@ -19,6 +19,8 @@
         {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
+      environment:
+        AWS_PROFILE: "{{ aws_profile }}"
       when: metadata_json_file.stat.exists
 
     - name: Get the Volume ID by Tag Name
