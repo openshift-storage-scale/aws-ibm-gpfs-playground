@@ -12,7 +12,7 @@ EBS volume and attach it to the three workers.
 3. Run the following to create an `overrides.yml`. 
 ```
 cat > overrides.yml<<EOF
-# ocp_domain: "aws.validatedpatterns.io"
+# ocp_domain: "fusionaccess.devcluster.openshift.com"
 ocp_cluster_name: "gpfs-bandini"
 gpfs_volume_name: "bandini-volume"
 # ocp_worker_count: 3

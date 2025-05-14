@@ -4,7 +4,7 @@
 # ocp_version: "4.19.0-ec.5"
 ocp_version: "4.18.9"
 
-ocp_domain: "aws.validatedpatterns.io"
+ocp_domain: "fusionaccess.devcluster.openshift.com"
 ocp_cluster_name: "gpfs-test"
 ocp_worker_count: 3
 ocp_worker_type: "m5.2xlarge"

@@ -5,7 +5,6 @@ ocp_worker_type: m5.metal
 ocp_master_type: m5.4xlarge
 ocp_az: eu-north-1a
 ocp_region: eu-north-1
-aws_profile: default
 
 gpfs_volume_name_two: "gpfs-volume-fast"
 ebs_volume_size_two: 310
