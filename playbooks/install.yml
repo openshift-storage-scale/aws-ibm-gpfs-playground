@@ -13,6 +13,14 @@
       ansible.builtin.debug:
         msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
 
+    - name: Verify htpasswd exists
+      ansible.builtin.command:
+        cmd: which htpasswd
+      register: htpasswd_check
+      failed_when: htpasswd_check.rc != 0
+      tags:
+        - 1_ocp_install
+
     - name: Check if the ibm-entitlement file exists
       tags:
         - 1_ocp_install
