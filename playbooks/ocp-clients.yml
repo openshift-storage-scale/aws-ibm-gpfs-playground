@@ -7,7 +7,8 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-    - debug:
+    - name: Print out basic starting facts
+      ansible.builtin.debug:
         msg:
           Environment:
             Architecture: "{{ cpu_arch }}"
