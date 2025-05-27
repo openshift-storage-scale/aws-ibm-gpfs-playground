@@ -39,8 +39,8 @@
   ansible.builtin.shell: |
     set -e
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} delete secret -n openshift-fusion-access fusion-pullsecret || true
-    {{ oc_bin }} create secret -n openshift-fusion-access generic fusion-pullsecret  \
+    {{ oc_bin }} delete secret -n ibm-fusion-access fusion-pullsecret || true
+    {{ oc_bin }} create secret -n ibm-fusion-access generic fusion-pullsecret  \
       --from-literal=ibm-entitlement-key={{ ibmentitlementkey }}
   retries: 10
   delay: 20
