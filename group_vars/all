@@ -89,7 +89,6 @@ butane_bin: "{{ basefolder }}/{{ ocp_version }}/butane"
 virtctl_bin: "{{ basefolder }}/{{ ocp_version }}/virtctl"
 kubeconfig: "{{ ocpfolder }}/auth/kubeconfig"
 gpfsfolder: "{{ basefolder }}/gpfs"
-tempfolder: "/tmp/aws-gpfs-temp-folder"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json' | expanduser) }}"
 
 ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
