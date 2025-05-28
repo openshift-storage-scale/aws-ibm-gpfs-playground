@@ -25,6 +25,8 @@ butane_os_group: >-
 butane_arch: >-
   {%- if ansible_architecture == "x86_64" -%}
     amd64
+  {%- elif ansible_architecture == "arm64" -%}
+    aarch64
   {%- else -%}
     {{ ansible_architecture }}
   {%- endif -%}
