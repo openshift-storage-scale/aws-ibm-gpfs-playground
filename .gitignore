@@ -1,3 +1,5 @@
 overrides.yml
 .ansible
 .venv
+.tmp
+infra
