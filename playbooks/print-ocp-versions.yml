@@ -21,6 +21,7 @@
         grep -E '<a href="[[:digit:]]+.[[:digit:]]+.[[:digit:]]+.*">' "{{ ocp_tmp_file }}" | \
           sed -e 's/<a href="//' | sed -e 's/\/">//' | awk '{$1=$1};1' | sort --version-sort | \
           grep -w -e "^{{ item }}" | tail -n1
+        rm "{{ ocp_tmp_file }}"
       register: versions_output
       with_items: "{{ major_versions }}"
 

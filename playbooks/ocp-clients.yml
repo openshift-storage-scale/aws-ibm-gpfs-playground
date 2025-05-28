@@ -67,7 +67,18 @@
         dest: "{{ basefolder }}/{{ ocp_version }}"
         remote_src: true
     
-    - name: Remove *.tar.gz files
+    - name: Find files to remove
+      ansible.builtin.find:
+        paths: "{{ basefolder }}/{{ ocp_version }}"
+        patterns: 
+          - "openshift-*.tar.gz"
+          - "README.md"
+        recurse: false
+      register: files_to_remove
+
+    - name: Remove found files
       ansible.builtin.file:
-        path: "{{ basefolder }}/{{ ocp_version }}/openshift-*.tar.gz"
+        path: "{{ item.path }}"
         state: absent
+      loop: "{{ files_to_remove.files }}"
+      when: files_to_remove.files is defined and files_to_remove.files | length > 0
