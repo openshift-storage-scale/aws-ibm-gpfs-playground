@@ -64,7 +64,7 @@
       ansible.builtin.shell: |
         set -ex
         id
-        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> /tmp/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
+        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
       args:
         chdir: "{{ ocpfolder }}"
       environment:

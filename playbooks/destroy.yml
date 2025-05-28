@@ -16,7 +16,7 @@
       tags:
         - ocp_destroy
       ansible.builtin.shell: |
-        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> /tmp/oc-{{ ocp_version }}-destroy.log
+        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> {{ logsfolder }}/oc-{{ ocp_version }}-destroy.log
       args:
         chdir: "{{ ocpfolder }}"
       environment:
