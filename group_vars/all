@@ -25,6 +25,8 @@ butane_os_group: >-
 butane_arch: >-
   {%- if ansible_architecture == "x86_64" -%}
     amd64
+  {%- elif ansible_architecture == "arm64" -%}
+    aarch64
   {%- else -%}
     {{ ansible_architecture }}
   {%- endif -%}
@@ -80,6 +82,7 @@ operator_registry: quay.io/openshift-storage-scale
 openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4"
 ocp_maj_min_version: "{{ ocp_version.split('.')[0] }}.{{ ocp_version.split('.')[1] }}"
 ocp_maj_min_version_dashed: "{{ ocp_maj_min_version | replace('.', '-') }}"
+logsfolder: "/tmp"
 basefolder: "{{ '~/aws-gpfs-playground' | expanduser }}"
 ocpfolder: "{{ basefolder }}/ocp_install_files"
 oc_bin: "{{ basefolder }}/{{ ocp_version }}/oc"
@@ -89,7 +92,6 @@ butane_bin: "{{ basefolder }}/{{ ocp_version }}/butane"
 virtctl_bin: "{{ basefolder }}/{{ ocp_version }}/virtctl"
 kubeconfig: "{{ ocpfolder }}/auth/kubeconfig"
 gpfsfolder: "{{ basefolder }}/gpfs"
-tempfolder: "/tmp/aws-gpfs-temp-folder"
 pullsecret: "{{ lookup('file', '~/.pullsecret.json' | expanduser) }}"
 
 ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
