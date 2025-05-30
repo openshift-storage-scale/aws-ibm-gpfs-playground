@@ -1,0 +1,49 @@
+---
+- name: Playbook to set up the iscsi target ec2 in aws
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  vars:
+    iscsi_target_ssh_key_name: aeros-ssh-key-rsa
+
+  tasks:
+    - name: Print AWS infos
+      ansible.builtin.debug:
+        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
+
+    - name: Delete created key pair
+      amazon.aws.ec2_key:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: "{{ iscsi_target_ssh_key_name }}"
+        state: absent
+
+    - name: Gather the ec2 instance details
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "iscsi-target"
+      register: ec2_node_info
+
+    - name: Set ec2 instance id
+      ansible.builtin.set_fact:
+        instance_id: "{{ ec2_node_info.instances | map(attribute='instance_id') | first  }}"
+
+    - name: Delete ec2 instance
+      amazon.aws.ec2_instance:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+        state: terminated
+
+    - name: Delete ec2 security group
+      amazon.aws.ec2_security_group:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: iscsi-target-security-group
+        state: absent
