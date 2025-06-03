@@ -102,3 +102,11 @@ power_ninety: false
 vmpass: "{{ lookup('file', '~/.vmpass' | expanduser) }}"
 dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 virt_test_ns: "virt-test"
+
+iscsi_target_iqn: iqn.2024-02.com.example
+iscsi_target_primary_ip: 10.0.100.100
+iscsi_target_secondary_ip: 10.0.100.101
+iscsi_target_ami_image_id: ami-00187b27c7593c902 # fedora41
+iscsi_target_ssh_key_name: aeros-ssh-key-rsa
+iscsi_target_volume_size: 150 # in GB
+iscsi_target_instance_type: t2.micro

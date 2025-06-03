@@ -52,6 +52,14 @@ destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/destroy.yml
 	-@notify.sh "AWS destroy finished"
 
+.PHONY: iscsi
+iscsi: ## Creates iscsi ec2 target and connects it to worker nodes
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/iscsi.yml
+
+.PHONY: iscsi-cleanup
+iscsi-cleanup: ## Removes iscsi ec2 resources
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/iscsi-cleanup.yml
+
 .PHONY: list-tags
 list-tags: ## Lists all tags in the install playbook
 	ansible-playbook --list-tags playbooks/install.yml
