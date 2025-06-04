@@ -8,7 +8,7 @@ EXTRA_VARS ?=
 # When true we set the default to a BM instance for Power90
 POWER90 ?= false
 ifeq ($(POWER90), true)
-	EXTRA_ARGS = -e @./vars/power90.yaml
+	EXTRA_ARGS = -e @./vars/power90.yaml -e @./overrides.yml 
 endif
 
 
