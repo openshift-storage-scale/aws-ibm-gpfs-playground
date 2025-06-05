@@ -11,6 +11,50 @@ ifeq ($(POWER90), true)
 	EXTRA_ARGS = -e @./vars/power90.yaml -e @./overrides.yml 
 endif
 
+# This section defines the test framework for the Makefile.
+
+# Variable to defined functions that can be tested
+TESTABLE_FUNCS := center_banner veritas
+
+# Validates the FUNC variable and runs the corresponding test function
+# Usage: `make test FUNC=<function_name>`
+# Example: `make test FUNC=center_banner`
+# To see available test functions, run `make test-help`
+.PHONY: test
+test:
+	@if [ -z "$(FUNC)" ]; then \
+		echo "Usage: make test FUNC=<function_name>"; \
+		$(MAKE) test-help; \
+		exit 1; \
+	fi; \
+	if ! echo "$(TESTABLE_FUNCS)" | grep -qw "$(FUNC)"; then \
+		echo "Unknown FUNC='$(FUNC)'"; \
+		$(MAKE) test-help; \
+		exit 1; \
+	fi; \
+	$(MAKE) test-$(FUNC)
+
+.PHONY: test-help
+test-help:
+	@echo "Available test functions:"
+	@for f in $(TESTABLE_FUNCS); do echo "  - $$f"; done
+
+# Test framework ends here
+
+# To print a message in the center of the terminal
+# Usage: $(call center_banner, "Your message here")
+# Example: $(call center_banner, "Welcome to the OCP Installer")
+# This will print the message centered with '=' padding
+define center_banner
+	@cols=$$(tput cols); \
+	msg=" $(1) "; \
+	msg_len=$${#msg}; \
+	padding=$$(( (cols - msg_len) / 2 )); \
+	fill=$$(printf '%*s' "$$padding" | tr ' ' '='); \
+	printf "%s%s%s\n" "$$fill" "$$msg" "$$fill"; \
+	[ $$(( (cols - msg_len) % 2 )) -eq 1 ] && printf "=\n" || true
+endef
+
 
 ##@ Common Tasks
 .PHONY: help
@@ -68,3 +112,9 @@ list-tags: ## Lists all tags in the install playbook
 .PHONY: lint
 lint: ## Run ansible-lint on the codebase
 	ansible-lint -v
+
+# Usage: `make test FUNC=center_banner` 
+# OR `make test FUNC=center_banner MSG="Your message is here"`
+.PHONY: test-center_banner
+test-center_banner: ## Test the center_banner function
+	$(call center_banner,$(if $(MSG),$(MSG),Default Test message which should be centered))
