@@ -4,6 +4,6 @@ metadata:
   name: fusionaccess-object
   namespace: "{{ operator_namespace }}"
 spec:
-  ibm_cnsa_version: {{ gpfs_cnsa_version }}
-  storagedevicediscovery:
+  storageScaleVersion: {{ gpfs_cnsa_version }}
+  storageDeviceDiscovery:
     create: true
