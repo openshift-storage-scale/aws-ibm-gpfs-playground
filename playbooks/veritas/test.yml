@@ -1,0 +1,85 @@
+- name: Get InfoScaleCluster
+  kubernetes.core.k8s_info:
+    api_version: infoscale.veritas.com/v1
+    kind: InfoScaleCluster
+    namespace: infoscale-vtas
+    name: infoscalecluster-dev
+  register: isc_info
+  tags: test
+
+- name: Get InfoScaleCluster
+  kubernetes.core.k8s_info:
+    api_version: infoscale.veritas.com/v1
+    kind: InfoScaleCluster
+    namespace: infoscale-vtas
+    name: infoscalecluster-dev
+  register: isc_info
+
+- name: Assert InfoScaleCluster is Running, Healthy
+  ansible.builtin.assert:
+    that:
+      - isc_info.resources | length > 0
+      - (isc_info.resources[0].status.phase       | default('')) == "Running"
+      - (isc_info.resources[0].status.clusterState | default('')) == "Healthy"
+      - isc_info.resources[0].status.diskgroups is defined
+      - isc_info.resources[0].status.diskgroups | length > 0
+    success_msg: >-
+      InfoScaleCluster is Running, Healthy, and has {{ isc_info.resources[0].status.diskgroups | length }} diskgroup(s)
+    fail_msg: >-
+      InfoScaleCluster check failed:
+        phase={{ isc_info.resources[0].status.phase | default('MISSING') }},
+        clusterState={{ isc_info.resources[0].status.clusterState | default('MISSING') }},
+        diskgroups={{ isc_info.resources[0].status.diskgroups | default('MISSING') }}
+  tags: test
+
+- name: Deploy PVC + Deployment workload
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', '../../templates/veritas/test-workload.yaml') }}"
+    namespace: default
+  tags: test
+
+- name: Wait for infoscale-claim PVC to be Bound
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: default
+    name: infoscale-claim
+  register: pvc_info
+  until: pvc_info.resources[0].status.phase == "Bound"
+  retries: 10
+  delay: 6
+  tags: test
+
+- name: Wait for containertools Pod to be Running
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: default
+    label_selectors:
+      - app=containertools
+  register: pod_info
+  until: >
+    (pod_info.resources | length > 0)
+    and (pod_info.resources[0].status.phase == "Running")
+  retries: 10
+  delay: 6
+  tags: test
+
+- name: Delete containertools Deployment
+  kubernetes.core.k8s:
+    state: absent
+    api_version: apps/v1
+    kind: Deployment
+    namespace: default
+    name: containertools
+  tags: test
+
+- name: Delete infoscale-claim PVC
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: default
+    name: infoscale-claim
+  tags: test

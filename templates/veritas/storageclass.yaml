@@ -1,0 +1,18 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: infoscale
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: org.veritas.infoscale
+parameters:
+  fstype: vxfs
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+#Extra parameters:
+# - layout --> Enter one of the following - stripe, mirror, stripe-mirror, mirror-stripe, concat, concat-mirror, and mirror-concat. By default, a best-suited layout is selected based on the environment
+# - faultTolerance --> Number of disk or host failures a storage object can tolerate.
+# - nstripe --> Number of stripe columns to use when creating a striped volume
+# - stripeUnit --> Stripe unit size to use for striped volume
+# - mediaType --> Type of disks to be used for Volume creation (HDD or SSD).

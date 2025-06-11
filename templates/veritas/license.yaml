@@ -1,0 +1,7 @@
+apiVersion: vlic.veritas.com/v1
+kind: License
+metadata:
+  name: license-dev
+  namespace: infoscale-vtas
+spec:
+  licenseEdition: Developer

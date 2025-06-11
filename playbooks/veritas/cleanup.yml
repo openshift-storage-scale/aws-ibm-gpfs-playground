@@ -1,0 +1,79 @@
+- name: Gather all VirtualMachine resources in test-vms
+  kubernetes.core.k8s_info:
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    namespace: test-vms
+  register: vm_list
+  ignore_errors: yes
+  tags: cleanup
+
+- name: Delete every VM in test-vms
+  kubernetes.core.k8s:
+    state: absent
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    namespace: test-vms
+    name: "{{ item.metadata.name }}"
+  loop: "{{ vm_list.resources | default([]) }}"
+  when: vm_list.resources is defined and vm_list.resources | length > 0
+  ignore_errors: yes
+  tags: cleanup
+
+- name: Wait for all VMs in test-vms namespace to be deleted
+  kubernetes.core.k8s_info:
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    namespace: test-vms
+  register: vm_remaining
+  retries: 10
+  delay: 6
+  until: vm_remaining.resources | length == 0
+  tags: cleanup
+
+- name: Wait until no PVCs remain in test-vms namespace
+  kubernetes.core.k8s_info:
+    kind: PersistentVolumeClaim
+    namespace: test-vms
+  register: pvc_list
+  retries: 10           
+  delay: 6           
+  until: pvc_list.resources | length == 0
+  tags: cleanup
+
+- name: Delete StorageClass infoscale
+  kubernetes.core.k8s:
+    state: absent
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: infoscale
+  ignore_errors: yes
+  tags: cleanup
+
+- name: Delete InfoScaleCluster infoscalecluster-dev
+  kubernetes.core.k8s:
+    state: absent
+    api_version: infoscale.veritas.com/v1
+    kind: InfoScaleCluster
+    namespace: infoscale-vtas
+    name: infoscalecluster-dev
+  ignore_errors: yes
+  tags: cleanup
+
+- name: Delete Veritas License license-dev
+  kubernetes.core.k8s:
+    state: absent
+    api_version: vlic.veritas.com/v1
+    kind: License
+    namespace: infoscale-vtas
+    name: license-dev
+  ignore_errors: yes
+  tags: cleanup
+
+- name: Delete namespace infoscale-vtas
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Namespace
+    name: infoscale-vtas
+  ignore_errors: yes
+  tags: cleanup

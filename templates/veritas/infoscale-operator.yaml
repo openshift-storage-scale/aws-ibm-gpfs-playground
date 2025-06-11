@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infoscale-vtas
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: infoscale-sds-operator
+  namespace: infoscale-vtas
+spec:
+  channel: fast
+  name: infoscale-sds-operator
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: infoscale-sds-operator-operatorgroup
+  namespace: infoscale-vtas
+spec: {}

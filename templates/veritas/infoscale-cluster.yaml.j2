@@ -1,0 +1,17 @@
+apiVersion: infoscale.veritas.com/v1
+kind: InfoScaleCluster
+metadata:
+  name: infoscalecluster-dev
+  namespace: infoscale-vtas
+spec:
+  encrypted: false
+  sameEncKey: false
+  enableScsi3pr: true
+  isSharedStorage: true
+  version: 8.0.400
+  clusterInfo:
+{% for node in worker_nodes_name_list %}
+    - nodeName: {{ node }}
+      excludeDevice:
+        - "{{ boot_disk_by_path }}"
+{% endfor %}

@@ -1,0 +1,22 @@
+- name: Get worker nodes
+  kubernetes.core.k8s_info:
+    kind: Node
+    label_selectors:
+      - "node-role.kubernetes.io/worker"
+  register: worker_nodes_info
+  tags: ops
+
+- name: Set worker node names
+  set_fact:
+    worker_nodes_name_list: >-
+      {{ worker_nodes_info.resources | map(attribute='metadata.name') | list }}
+  tags: ops
+
+# assumes the disk is 300gb
+# dd if=/dev/zero of=/dev/nvme1n1 bs=16K count=19660800
+- name: Get boot disk to exclude in infoscale cluster
+  ansible.builtin.shell: |
+    oc debug node/{{ worker_nodes_name_list | first }} -- chroot /host bash -c ' 
+    dd if=/dev/zero of=/dev/nvme1n1 bs=16K count=19660800
+    '
+  tags: ops

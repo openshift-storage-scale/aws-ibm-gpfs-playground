@@ -1,0 +1,87 @@
+- name: Install InfoScale Operator
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', '../../templates/veritas/infoscale-operator.yaml') | from_yaml_all }}"
+
+- name: Wait for Veritas License CRD to be available
+  kubernetes.core.k8s_info:
+    api_version: vlic.veritas.com/v1
+    kind: License
+  register: veritas_license_check
+  retries: 30
+  delay: 10
+  until: veritas_license_check is succeeded
+
+- name: Create Veritas License
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', '../../templates/veritas/license.yaml') }}"
+
+- name: Get worker nodes
+  kubernetes.core.k8s_info:
+    kind: Node
+    label_selectors:
+      - "node-role.kubernetes.io/worker"
+  register: worker_nodes_info
+
+- name: Set worker node names
+  set_fact:
+    worker_nodes_name_list: >-
+      {{ worker_nodes_info.resources | map(attribute='metadata.name') | list }}
+
+# Get boot_disk_by_path just for one worker node. it is name in others usually
+- name: Get boot disk to exclude in infoscale cluster
+  ansible.builtin.shell: |
+    oc debug node/{{ worker_nodes_name_list | first }} -- chroot /host bash -c ' 
+    boot_disk=$(readlink -f "$(findmnt -n -o SOURCE / | sed '\''s/p[0-9].*//'\'' )")
+      for d in /dev/disk/by-path/*; do
+        if [[ "$(readlink -f "$d")" == "$boot_disk" ]]; then
+          echo "$d"
+        fi
+      done
+    '
+  register: boot_disk_by_path
+
+- name: Set boot disk_by_path_map
+  set_fact:
+    boot_disk_by_path: "{{ boot_disk_by_path.stdout }}"
+
+- name: Deploy InfoScaleCluster
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', '../../templates/veritas/infoscale-cluster.yaml.j2') }}"
+
+# Assuming that the default StorageClass is gp3-csi
+- name: Ensure gp3-csi StorageClass is not default
+  kubernetes.core.k8s:
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: gp3-csi
+    definition:
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "false"
+    merge_type: merge
+
+- name: Create InfoScale StorageClass as default
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', '../../templates/veritas/storageclass.yaml') }}"
+
+- name: Create VolumeSnapshotClass
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', '../../templates/veritas/snapshotclass.yaml') }}"
+
+- name: Patch StorageProfile (accessModes and cloneStrategy)
+  kubernetes.core.k8s:
+    api_version: cdi.kubevirt.io/v1beta1
+    kind: StorageProfile
+    name: infoscale
+    definition:
+      spec:
+        claimPropertySets:
+          - accessModes: ["ReadWriteOnce"]
+            volumeMode: "Filesystem"
+        cloneStrategy: csi-clone
+    merge_type: merge
