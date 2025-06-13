@@ -49,3 +49,8 @@ Run `make gpfs-health` to run some GPFS healthcheck commands
 ## Delete GPFS objects
 
 Run `make gpfs-clean` to remove all the gpfs objects we know about
+
+## Test
+   - Run `make test-help` to see available tests
+   - Run `make test FUNC=<available test functions>` to test a testable function
+
