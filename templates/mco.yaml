@@ -5,8 +5,8 @@ metadata:
   labels:
     machineconfiguration.openshift.io/role: worker
 openshift:
-  extensions:
-    - kernel-devel
+  # extensions:
+  #   - kernel-devel
   kernel_arguments:
     - crashkernel=4096M
 storage:
