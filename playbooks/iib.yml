@@ -2,6 +2,9 @@
 - hosts: localhost
   gather_facts: false
   become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
   tasks:
     - name: Check for pre-requisite binaries presence
       ansible.builtin.shell: |
