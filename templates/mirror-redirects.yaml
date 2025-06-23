@@ -1,0 +1,22 @@
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+ name: brew-stage-registry-v2
+spec:
+ imageDigestMirrors:
+   - source: registry.redhat.io/kmm
+     mirrors:
+       - registry.stage.redhat.io
+   - source: registry-proxy.engineering.redhat.com
+     mirrors:
+       - brew.registry.redhat.io
+---
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: iib-tag
+spec:
+  imageTagMirrors:
+    - source: registry-proxy.engineering.redhat.com
+      mirrors:
+       - brew.registry.redhat.io

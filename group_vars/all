@@ -110,3 +110,19 @@ iscsi_target_ami_image_id: ami-00187b27c7593c902 # fedora41
 iscsi_target_ssh_key_name: aeros-ssh-key-rsa
 iscsi_target_volume_size: 150 # in GB
 iscsi_target_instance_type: t2.micro
+
+# Stuff needed only for IIB
+iib_images: "{{ lookup('env', 'INDEX_IMAGES') }}"
+# We can use default(, true) below because OPERATOR is a string and not a boolean
+operator: "{{ lookup('env', 'OPERATOR') | default('openshift-gitops-operator', true) }}"
+channels: "{{ lookup('env', 'CHANNELS') | default('', true) }}"
+
+brew_registry_url: "brew.registry.redhat.io"
+brew_registry_username: "{{ lookup('file', '~/.brew_registry_user' | expanduser) }}"
+brew_registry_password: "{{ lookup('file', '~/.brew_registry_pass' | expanduser) }}"
+
+stage_registry_url: "registry.stage.redhat.io"
+stage_registry_username: "{{ lookup('file', '~/.stage_registry_user' | expanduser) }}" 
+stage_registry_password: "{{ lookup('file', '~/.stage_registry_pass' | expanduser) }}" 
+
+internal_registry_ns: openshift-marketplace
