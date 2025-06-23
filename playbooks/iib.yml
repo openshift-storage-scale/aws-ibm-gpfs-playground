@@ -1,0 +1,131 @@
+---
+- hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Check for pre-requisite binaries presence
+      ansible.builtin.shell: |
+        which "{{ item }}"
+      with_items:
+        - oc
+        - podman
+
+    - name: Check that INDEX_IMAGES env variable is set
+      ansible.builtin.fail:
+        msg: "INDEX_IMAGES: '{{ iib_images }}' is not set"
+      failed_when:
+        (iib_images is not defined or iib_images | length == 0)
+      
+    - name: Set images array
+      ansible.builtin.set_fact:
+        iib_image_list: "{{ iib_images.split(',') }}"
+
+    - name: Set operator array
+      ansible.builtin.set_fact:
+        operator_list: "{{ operator.split(',') }}"
+
+    - name: Check that images array and operators array have same length
+      ansible.builtin.assert:
+        that:
+          iib_image_list | length == operator_list | length
+        fail_msg: "INDEX_IMAGES and OPERATOR need to have the same number of elements"
+
+    - name: Set channels array
+      ansible.builtin.set_fact:
+        channel_list: "{{ channels.split(',') }}"
+      when: channels | length > 0
+
+    - name: Set list of empty strings
+      ansible.builtin.set_fact:
+        channel_list: "{{ range(0, operator_list | length) | map('regex_replace', '.*', '') | list }}"
+      when: channels | length == 0
+
+    # Creates a dict like (channel set to "" signifies to use the default channel):
+    # "advanced-cluster-management": {
+    #   "iib": "713808",
+    #   "channel": "",
+    #   "iib_image": "registry-proxy.engineering.redhat.com/rh-osbs/iib:713808"
+    # },
+    # "multicluster-engine": {
+    #   "iib": "713809",
+    #   "channel": "",
+    #   "iib_image": "registry-proxy.engineering.redhat.com/rh-osbs/iib:713809"
+    # }
+    - name: Set IIB dict
+      ansible.builtin.set_fact:
+        iib_dict: "{{ iib_dict | default({}) | combine({item.0: {'channel': item.1, 'iib_image': item.2, 'iib': item.2.split(':')[-1]}}) }}"
+      with_together:
+        - "{{ operator_list }}"
+        - "{{ channel_list }}"
+        - "{{ iib_image_list }}"
+
+    - name: Print info about IIB images
+      ansible.builtin.include_tasks: info-iib.yml
+      with_items: "{{ iib_dict | dict2items }}"
+
+    - name: Working with the following IIB data
+      ansible.builtin.debug:
+        msg: "{{ iib_dict }}"
+
+    - name: Check we can reach the cluster
+      ansible.builtin.command: oc cluster-info
+
+    - name: Get a tempfile for the pull secrets
+      ansible.builtin.tempfile:
+        state: directory
+      register: pull_secrets_tempfolder          
+
+    - name: Build docker config JSON for ocp cluster
+      ansible.builtin.set_fact:
+        ocp_dockerconfig:
+          auths: >-
+            {{ 
+              { 
+                brew_registry_url: {
+                  "username": brew_registry_username,
+                  "password": brew_registry_password,
+                  "auth": (brew_registry_username + ':' + brew_registry_password) | b64encode
+                },
+                stage_registry_url: {
+                  "username": stage_registry_username,
+                  "password": stage_registry_password,
+                  "auth": (stage_registry_username + ':' + stage_registry_password) | b64encode
+                }
+              }
+            }}
+
+    - name: Get current cluster pull secrets
+      ansible.builtin.command:
+        oc extract secret/pull-secret -n openshift-config --to=-
+      register: pull_secrets_raw
+
+    - name: Parse secrets as JSON
+      ansible.builtin.set_fact:
+        pull_secrets: "{{ pull_secrets_raw.stdout | from_json }}"
+
+    - name: Add mirror registry to pull secrets
+      ansible.builtin.set_fact:
+        ocp_secrets: "{{ pull_secrets | combine(ocp_dockerconfig, recursive=true) }}"
+    
+    - name: Write merged docker config file for ocp cluster
+      copy:
+        content: "{{ ocp_secrets | to_nice_json }}"
+        dest: "{{ pull_secrets_tempfolder.path }}/ocpcluster.dockerconfigjson"
+        mode: '0600'
+
+    - name: Inject new global pull secret
+      ansible.builtin.shell:
+        oc set data secret/pull-secret -n openshift-config --from-file=.dockerconfigjson={{ pull_secrets_tempfolder.path }}/ocpcluster.dockerconfigjson
+
+    - name: Template mirroring bits
+      ansible.builtin.template:
+        src: ../templates/mirror-redirects.yaml
+        dest: /tmp/mirror-redirects.yaml
+
+    - name: Apply mirroring bits
+      ansible.builtin.shell:
+        oc apply -f /tmp/mirror-redirects.yaml
+
+    - name: Set up IIB images in cluster
+      ansible.builtin.include_tasks: setup-iib.yml
+      with_items: "{{ iib_dict | dict2items }}"
