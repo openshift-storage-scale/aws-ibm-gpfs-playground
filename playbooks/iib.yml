@@ -108,7 +108,7 @@
         ocp_secrets: "{{ pull_secrets | combine(ocp_dockerconfig, recursive=true) }}"
     
     - name: Write merged docker config file for ocp cluster
-      copy:
+      ansible.builtin.copy:
         content: "{{ ocp_secrets | to_nice_json }}"
         dest: "{{ pull_secrets_tempfolder.path }}/ocpcluster.dockerconfigjson"
         mode: '0600'
