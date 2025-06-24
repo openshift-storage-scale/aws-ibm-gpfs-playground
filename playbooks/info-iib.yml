@@ -100,3 +100,35 @@
 - name: Print all images
   ansible.builtin.debug:
     msg: "{{ all_images }}"
+
+# Given these all_images:
+#   registry.redhat.io/kmm/kernel-module-management-must-gather-rhel9@sha256:a1062af0a018fc96cec81b57d419252efb566f80628c783d2750419d3cf375b9
+#   registry.redhat.io/kmm/kernel-module-management-rhel9-operator@sha256:1fa8b699a2f05801fc9a00f1155a4f329b9e98ced4017e5b3e6d25fe7f576499
+#   registry.redhat.io/kmm/kernel-module-management-signing-rhel9@sha256:9ca63420bbd37eb48ba0d9c788df49b2ddd97f1351db56269227332665fa4b56
+#   registry.redhat.io/foo/kernel-module-management-signing-rhel9@sha256:9ca63420bbd37eb48ba0d9c788df49b2ddd97f1351db56269227332665fa4b56
+# This will return:
+#   registry.redhat.io/kmm
+#   registry.redhat.io/foo
+- name: Set minimum set of needed prefixes
+  ansible.builtin.set_fact:
+    redirects: >-
+      {{
+        all_images
+        | map('regex_replace', '^([^/]+/)([^/]+)/(.+)', '\1\2')
+        | unique
+        | select('match', '^registry\.redhat\.io')
+        | list
+      }}
+    
+- name: Print needed prefixes
+  ansible.builtin.debug:
+    msg: "{{ redirects }}"
+
+- name: Template mirroring bits
+  ansible.builtin.template:
+    src: ../templates/mirror-redirects.yaml
+    dest: /tmp/mirror-redirects-{{ item.key }}.yaml
+
+- name: Apply mirroring bits
+  ansible.builtin.shell:
+    oc apply -f /tmp/mirror-redirects-{{ item.key }}.yaml
