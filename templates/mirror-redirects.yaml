@@ -7,7 +7,7 @@ spec:
 {% for i in redirects %}
    - source: {{ i }}
      mirrors:
-       - registry.stage.redhat.io
+       - registry.stage.redhat.io/{{ i.split('/')[-1] }}
 {% endfor %}
    - source: registry-proxy.engineering.redhat.com
      mirrors:
