@@ -4,9 +4,11 @@ metadata:
  name: brew-stage-registry-v2
 spec:
  imageDigestMirrors:
-   - source: registry.redhat.io/kmm
+{% for i in redirects %}
+   - source: {{ i }}
      mirrors:
        - registry.stage.redhat.io
+{% endfor %}
    - source: registry-proxy.engineering.redhat.com
      mirrors:
        - brew.registry.redhat.io

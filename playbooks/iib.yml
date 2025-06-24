@@ -62,7 +62,7 @@
         - "{{ channel_list }}"
         - "{{ iib_image_list }}"
 
-    - name: Print info about IIB images
+    - name: Print info about IIB images and set up mirroring
       ansible.builtin.include_tasks: info-iib.yml
       with_items: "{{ iib_dict | dict2items }}"
 
@@ -119,15 +119,6 @@
     - name: Inject new global pull secret
       ansible.builtin.shell:
         oc set data secret/pull-secret -n openshift-config --from-file=.dockerconfigjson={{ pull_secrets_tempfolder.path }}/ocpcluster.dockerconfigjson
-
-    - name: Template mirroring bits
-      ansible.builtin.template:
-        src: ../templates/mirror-redirects.yaml
-        dest: /tmp/mirror-redirects.yaml
-
-    - name: Apply mirroring bits
-      ansible.builtin.shell:
-        oc apply -f /tmp/mirror-redirects.yaml
 
     - name: Set up IIB images in cluster
       ansible.builtin.include_tasks: setup-iib.yml
