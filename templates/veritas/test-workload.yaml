@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: infoscale-claim
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "infoscale"
+  resources:
+    requests:
+      storage: 500Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: containertools
+  name: containertools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: containertools
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: containertools
+    spec:
+      volumes:
+      - name: shared-volume
+        persistentVolumeClaim:
+          claimName: infoscale-claim
+      containers:
+      - image: quay.io/mavazque/trbsht:latest
+        name: containertools
+        resources: {}
+        volumeMounts:
+          - name: shared-volume
+            mountPath: "/mnt"
