@@ -1,7 +1,7 @@
 power_ninety: true
 ebs_volume_size: 300
 ocp_cluster_name: gpfs-demo
-ocp_worker_type: m5.metal
+ocp_worker_type: c5n.metal
 ocp_master_type: m5.4xlarge
 ocp_az: eu-north-1a
 ocp_region: eu-north-1
