@@ -9,4 +9,4 @@ spec:
       port: 3306
       targetPort: 3306
   selector:
-    app: centos-db
+    app: "{{ virt_vm_name }}"

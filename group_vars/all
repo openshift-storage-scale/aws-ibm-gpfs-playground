@@ -101,7 +101,9 @@ ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
 power_ninety: false
 vmpass: "{{ lookup('file', '~/.vmpass' | expanduser) }}"
 dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
+
 virt_test_ns: "virt-test"
+virt_vm_name: "centos-db"
 
 iscsi_target_iqn: iqn.2024-02.com.example
 iscsi_target_primary_ip: 10.0.100.100

@@ -99,7 +99,7 @@
       ansible.builtin.shell: |
         set -ex -o pipefail
         export KUBECONFIG="{{ kubeconfig }}"
-        {{ oc_bin }} get vmi -n {{ virt_test_ns }} centos-db -o jsonpath='{.status.phase}' | grep Running
+        {{ oc_bin }} get vmi -n {{ virt_test_ns }} {{ virt_vm_name }} -o jsonpath='{.status.phase}' | grep Running
       register: vm_up
       until: vm_up is not failed
       retries: 5
@@ -111,7 +111,7 @@
       ansible.builtin.shell: |
         set -ex
         export KUBECONFIG="{{ kubeconfig }}"
-        {{ virtctl_bin }} ssh --namespace {{ virt_test_ns }} -t="-o StrictHostKeyChecking=no" -t="-o UserKnownHostsFile=/dev/null" fedora@centos-db -c "sudo sh -c \"touch /root/iwashere\""
+        {{ virtctl_bin }} ssh --namespace {{ virt_test_ns }} -t="-o StrictHostKeyChecking=no" -t="-o UserKnownHostsFile=/dev/null" fedora@{{ virt_vm_name }} -c "sudo sh -c \"touch /root/iwashere\""
       register: vm_ssh
       until: vm_ssh is not failed
       retries: 5
