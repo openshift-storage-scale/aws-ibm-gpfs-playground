@@ -93,11 +93,25 @@
       loop:
         - virt-vm-db.yaml
 
+    - name: Wait for VM to be up
+      tags:
+        - ops
+      ansible.builtin.shell: |
+        set -ex -o pipefail
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get vmi -n {{ virt_test_ns }} centos-db -o jsonpath='{.status.phase}' | grep Running
+      register: vm_up
+      until: vm_up is not failed
+      retries: 5
+      delay: 30
+
     - name: Test ssh access to VM
+      tags:
+        - ops
       ansible.builtin.shell: |
         set -ex
-        export KUBECONFIG="{{ fullclusterfolder }}/auth/kubeconfig"
-        {{ virtctl_bin }} ssh --namespace {{ virt_test_ns }} -t="-o StrictHostKeyChecking=no" -t="-o UserKnownHostsFile=/dev/null" -i /home/michele/.ssh/id_ansible root@centos-db -c "sudo sh -c \"touch /root/iwashere\""
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ virtctl_bin }} ssh --namespace {{ virt_test_ns }} -t="-o StrictHostKeyChecking=no" -t="-o UserKnownHostsFile=/dev/null" fedora@centos-db -c "sudo sh -c \"touch /root/iwashere\""
       register: vm_ssh
       until: vm_ssh is not failed
       retries: 5
