@@ -105,6 +105,11 @@ dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 virt_test_ns: "virt-test"
 virt_vm_name: "centos-db"
 
+oadp_s3_owner: "s3-oadp-{{ ocp_cluster_name }}"
+oadp_s3_policy: "{{ oadp_s3_bucket }}-owner-policy"
+oadp_s3_bucket: "oadp-s3-{{ ocp_cluster_name }}"
+oadp_s3_url: "https://{{ oadp_s3_bucket }}.s3.{{ ocp_region }}.amazonaws.com"
+
 iscsi_target_iqn: iqn.2024-02.com.example
 iscsi_target_primary_ip: 10.0.100.100
 iscsi_target_secondary_ip: 10.0.100.101

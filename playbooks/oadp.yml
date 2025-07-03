@@ -17,7 +17,9 @@
         export KUBECONFIG={{ kubeconfig }}
         oc get filesystems -A
 
-    - name: Template virt subscription files
+    - name: Template oadp subscription files
+      tags:
+        - oadp
       ansible.builtin.template:
         src: ../templates/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
@@ -26,6 +28,8 @@
         - oadp-subscription.yaml
 
     - name: Apply oadp subscription
+      tags:
+        - oadp
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG="{{ kubeconfig }}"
@@ -36,3 +40,75 @@
       delay: 10
       loop:
         - oadp-subscription.yaml
+
+    - name: Create S3 bucket
+      tags:
+        - oadp
+      amazon.aws.s3_bucket:
+        name: "{{ oadp_s3_bucket }}"
+        state: present
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: s3_create_result
+
+    - name: Create IAM policy granting full access to a specific bucket
+      tags:
+        - oadp
+      amazon.aws.iam_managed_policy:
+        name: "{{ oadp_s3_policy }}"
+        profile: "{{ aws_profile }}"
+        state: present
+        policy: |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": "s3:*",
+                "Resource": [
+                  "arn:aws:s3:::{{ oadp_s3_bucket }}",
+                  "arn:aws:s3:::{{ oadp_s3_bucket }}/*"
+                ]
+              }
+            ]
+          }
+      register: s3_policy
+
+    - name: Print S3 info
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ s3_create_result }}"
+
+    - name: Print s3 bucket url
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ oadp_s3_url }}"
+
+    - name: Create s3 bucket owner
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: "{{ oadp_s3_owner }}"
+        state: present
+        profile: "{{ aws_profile }}"
+        managed_policies:
+          - "{{ s3_policy.policy.arn }}"
+
+    - name: Create access key for user
+      tags:
+        - oadp
+      amazon.aws.iam_access_key:
+        user_name: "{{ oadp_s3_owner }}"
+        state: present
+        profile: "{{ aws_profile }}"
+      register: s3_owner_keys
+
+    - name: Write these keys to file just in case
+      tags:
+        - oadp
+      ansible.builtin.copy:
+        dest: "{{ gpfsfolder }}/oadp-s3-creds.txt"
+        content: "{{ s3_owner_keys }}"
+
