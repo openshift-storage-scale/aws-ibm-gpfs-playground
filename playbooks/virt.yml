@@ -80,3 +80,25 @@
         - virt-ssh-secret.yaml
         - virt-vm-db-service.yaml
         - virt-vm-cloudinit.yaml
+
+    - name: Create VM
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: virt_apply
+      until: virt_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - virt-vm-db.yaml
+
+    - name: Test ssh access to VM
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG="{{ fullclusterfolder }}/auth/kubeconfig"
+        {{ virtctl_bin }} ssh --namespace {{ virt_test_ns }} -t="-o StrictHostKeyChecking=no" -t="-o UserKnownHostsFile=/dev/null" -i /home/michele/.ssh/id_ansible root@centos-db -c "sudo sh -c \"touch /root/iwashere\""
+      register: vm_ssh
+      until: vm_ssh is not failed
+      retries: 5
+      delay: 30
