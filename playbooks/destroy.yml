@@ -133,11 +133,18 @@
         - oadp
       amazon.aws.iam_access_key:
         user_name: "{{ oadp_s3_owner }}"
-        access_key_id: "{{ item.access_key_id }}"
+        id: "{{ item.access_key_id }}"
         state: absent
         profile: "{{ aws_profile }}"
       loop: "{{ key_info.access_keys }}"
       failed_when: false
+      register: key_delete_result
+
+    - name: Debug key delete
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ key_delete_result }}"
 
     - name: Delete the IAM s3 user with policy
       tags:
