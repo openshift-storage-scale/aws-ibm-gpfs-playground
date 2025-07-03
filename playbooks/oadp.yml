@@ -112,3 +112,66 @@
         dest: "{{ gpfsfolder }}/oadp-s3-creds.txt"
         content: "{{ s3_owner_keys }}"
 
+    - name: Create Secret for AWS credentials (if not already created)
+      tags:
+        - oadp2
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ oadp_s3_secret }}"
+            namespace: "{{ oadp_ns }}"
+          stringData:
+            cloud: |
+              [default]
+              aws_access_key_id = "{{ s3_owner_keys.access_key_id }}"
+              aws_secret_access_key = "{{ s3_owner_keys.secret_access_key }}"
+          type: Opaque
+
+    - name: Create DataProtectionApplication (DPA)
+      tags:
+        - oadp2
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: oadp.openshift.io/v1alpha1
+          kind: DataProtectionApplication
+          metadata:
+            name: "{{ oadp_dpa_name }}"
+            namespace: "{{ oadp_ns }}"
+          spec:
+            configuration:
+              velero:
+                defaultPlugins:
+                  - aws
+                  - openshift
+                  - kubevirt
+            backupLocations:
+              - velero:
+                  provider: aws
+                  default: true
+                  objectStorage:
+                    bucket: "{{ oadp_s3_bucket }}"
+                    prefix: velero
+                  config:
+                    region: "{{ ocp_region }}"
+                    s3ForcePathStyle: "true"
+                    s3Url: "{{ oadp_s3_url }}"
+                  credential:
+                    name: "{{ oadp_s3_secret }}"
+                    key: cloud
+
+    - name: Wait for DPA to be ready
+      tags:
+        - oadp2
+      kubernetes.core.k8s_info:
+        api_version: oadp.openshift.io/v1alpha1
+        kind: DataProtectionApplication
+        namespace: "{{ oadp_ns }}"
+        name: "{{ oadp_dpa_name }}"
+      register: dpa_status
+      retries: 30
+      delay: 10
+      until: dpa_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Reconciled') | selectattr('status', 'equalto', 'True') | list | length > 0
