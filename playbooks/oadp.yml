@@ -192,9 +192,9 @@
       retries: 30
       delay: 10
       until: >
-        ('status' in backupstoragelocation) and
-        ('phase' in backupstoragelocation.status) and
-        (backupstoragelocation.status.phase == 'Available')
+        (backupstoragelocation.resources | default([]) | length > 0) and 
+        ('status' in backupstoragelocation.resources[0]) and
+        (backupstoragelocation.resources[0].status.phase | default('') == 'Available')
 
     - name: Create VM snapshot using OADP (Velero Backup CR)
       kubernetes.core.k8s:
