@@ -31,6 +31,8 @@ stringData:
     - |
       #!/bin/bash
       set -x
+      # for now we skip this init entirely
+      exit 0
       MAX_RETRIES=5
       RETRY_INTERVAL=10  # seconds
       URL="{{ dbperf_tar }}"

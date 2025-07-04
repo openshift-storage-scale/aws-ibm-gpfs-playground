@@ -1,12 +1,12 @@
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
-  name: centos-db
+  name: "{{ virt_vm_name }}"
   namespace: "{{ virt_test_ns }}"
 spec:
   dataVolumeTemplates:
     - metadata:
-        name: centos-db-volume
+        name: "{{ virt_vm_name }}-volume"
         # Works around OCPNAS-60 for now
         annotations:
           cdi.kubevirt.io/cloneType: copy
@@ -31,7 +31,7 @@ spec:
     metadata:
       labels:
         network.kubevirt.io/headlessService: headless
-        app: centos-db
+        app: "{{ virt_vm_name }}"
     spec:
       accessCredentials:
         - sshPublicKey:
@@ -56,7 +56,7 @@ spec:
       subdomain: headless
       volumes:
         - dataVolume:
-            name: centos-db-volume
+            name: "{{ virt_vm_name }}-volume"
           name: rootdisk
         - name: cloudinitdisk
           cloudInitNoCloud:

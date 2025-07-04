@@ -35,6 +35,10 @@ virt: ## Configures the virt bits (only for POWER90)
 	@if [ "$(POWER90)" = "false" ]; then echo "Error, virt is only for power90"; exit 1; fi
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/virt.yml
 
+.PHONY: oadp
+oadp: ## Configures oadp
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/oadp.yml
+
 .PHONY: iib
 iib: ## Install an iib on an OCP cluster on AWS
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/iib.yml

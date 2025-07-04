@@ -65,3 +65,105 @@
         state: absent
       loop: "{{ volume_info_two.volumes }}"
       when: power_ninety | bool and volume_info_two.volumes | length > 0
+
+    - name: Delete all objects in the S3 bucket
+      tags:
+        - oadp
+      amazon.aws.aws_s3:
+        bucket: "{{ oadp_s3_bucket }}"
+        mode: delete
+        region: "{{ ocp_region }}"
+        recurse: yes  # delete all objects
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: Destroy oadp s3 bucket
+      tags:
+        - oadp
+      amazon.aws.s3_bucket:
+        name: "{{ oadp_s3_bucket }}"
+        state: absent
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+        recurse: true
+      failed_when: false
+
+    - name: Get IAM policy ARN by name
+      tags:
+        - oadp
+      amazon.aws.iam_policy_info:
+        iam_type: user
+        iam_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: policy_info
+
+    - name: Print ARN policies for user
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ policy_info }}"
+
+    - name: Set fact for the policy ARN
+      tags:
+        - oadp
+      set_fact:
+        my_policy_arn: "{{ item.arn }}"
+      loop: "{{ policy_info.policies }}"
+      when: item.policy_name == "{{ oadp_s3_bucket }}-owner-policy"
+
+    - name: Delete the IAM policy
+      tags:
+        - oadp
+      amazon.aws.iam_policy:
+        name: "{{ oadp_s3_policy }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: List IAM user's access keys
+      tags:
+        - oadp
+      amazon.aws.iam_access_key_info:
+        user_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: key_info        
+
+    - name: Delete IAM access key
+      tags:
+        - oadp
+      amazon.aws.iam_access_key:
+        user_name: "{{ oadp_s3_owner }}"
+        id: "{{ item.access_key_id }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      loop: "{{ key_info.access_keys }}"
+      failed_when: false
+      register: key_delete_result
+
+    - name: Debug key delete
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ key_delete_result }}"
+
+    - name: Delete the IAM s3 user with policy
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent      
+        profile: "{{ aws_profile }}"
+        managed_policies:
+          - "{{ my_policy_arn }}"
+      failed_when: false
+      when: my_policy_arn is defined
+
+    - name: Delete the IAM s3 user
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent      
+        profile: "{{ aws_profile }}"
+      failed_when: false
+      when: my_policy_arn is not defined
