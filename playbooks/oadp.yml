@@ -149,6 +149,7 @@
                 enable: true
                 uploaderType: kopia
               velero:
+                logLevel: debug
                 defaultPlugins:
                   - csi
                   - aws
