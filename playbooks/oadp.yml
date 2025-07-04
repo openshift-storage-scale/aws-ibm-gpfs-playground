@@ -145,6 +145,9 @@
             namespace: "{{ oadp_ns }}"
           spec:
             configuration:
+              nodeAgent:
+                enable: true
+                uploaderType: kopia
               velero:
                 defaultPlugins:
                   - csi
