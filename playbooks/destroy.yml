@@ -66,26 +66,15 @@
       loop: "{{ volume_info_two.volumes }}"
       when: power_ninety | bool and volume_info_two.volumes | length > 0
 
-    - name: Delete all objects in the S3 bucket
-      tags:
-        - oadp
-      amazon.aws.aws_s3:
-        bucket: "{{ oadp_s3_bucket }}"
-        mode: delete
-        region: "{{ ocp_region }}"
-        recurse: yes  # delete all objects
-        profile: "{{ aws_profile }}"
-      failed_when: false
-
     - name: Destroy oadp s3 bucket
       tags:
         - oadp
       amazon.aws.s3_bucket:
         name: "{{ oadp_s3_bucket }}"
         state: absent
+        force: true
         region: "{{ ocp_region }}"
         profile: "{{ aws_profile }}"
-        recurse: true
       failed_when: false
 
     - name: Get IAM policy ARN by name
