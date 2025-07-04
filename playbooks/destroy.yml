@@ -126,7 +126,7 @@
       amazon.aws.iam_access_key_info:
         user_name: "{{ oadp_s3_owner }}"
         profile: "{{ aws_profile }}"
-      register: key_info        
+      register: key_info
 
     - name: Delete IAM access key
       tags:
@@ -151,7 +151,7 @@
         - oadp
       amazon.aws.iam_user:
         name: s3-bucket-owner
-        state: absent      
+        state: absent
         profile: "{{ aws_profile }}"
         managed_policies:
           - "{{ my_policy_arn }}"
@@ -163,7 +163,44 @@
         - oadp
       amazon.aws.iam_user:
         name: s3-bucket-owner
-        state: absent      
+        state: absent
         profile: "{{ aws_profile }}"
       failed_when: false
       when: my_policy_arn is not defined
+
+    # This is needed mainly when destroying with the oadp tag
+    - name: Delete Secret for AWS credentials
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Secret
+        api_version: v1
+        name: "{{ oadp_s3_secret }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete DataProtectionApplication (DPA)
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: DataProtectionApplication
+        api_version: oadp.openshift.io/v1alpha1
+        name: "{{ oadp_dpa_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete backup
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        api_version: velero.io/v1
+        kind: Backup
+        name: "{{ oadp_backup_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false

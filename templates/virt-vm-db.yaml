@@ -3,6 +3,8 @@ kind: VirtualMachine
 metadata:
   name: "{{ virt_vm_name }}"
   namespace: "{{ virt_test_ns }}"
+  labels:
+    app: "{{ virt_vm_name }}"
 spec:
   dataVolumeTemplates:
     - metadata:

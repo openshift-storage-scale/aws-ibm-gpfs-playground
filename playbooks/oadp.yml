@@ -212,7 +212,10 @@
       register: backup_status
       retries: 30
       delay: 20
-      until: (backup_status.resources | default([]) | length > 0) and backup_status.resources[0].status.phase == 'Completed'
+      until: >
+        (backup_status.resources | default([]) | length > 0) and 
+        ('status' in backup_status.resources[0]) and
+        backup_status.resources[0].status.phase | default('') == 'Completed')
 
     - name: Confirm backup success
       debug:
