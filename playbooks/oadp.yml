@@ -116,6 +116,7 @@
       tags:
         - oadp2
       kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
         state: present
         definition:
           apiVersion: v1
@@ -134,6 +135,7 @@
       tags:
         - oadp2
       kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
         state: present
         definition:
           apiVersion: oadp.openshift.io/v1alpha1
@@ -167,6 +169,7 @@
       tags:
         - oadp2
       kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
         api_version: oadp.openshift.io/v1alpha1
         kind: DataProtectionApplication
         namespace: "{{ oadp_ns }}"
@@ -178,6 +181,7 @@
 
     - name: Create VM snapshot using OADP (Velero Backup CR)
       kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
         state: present
         definition:
           apiVersion: velero.io/v1
@@ -200,6 +204,7 @@
 
     - name: Wait for backup to complete
       kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
         api_version: velero.io/v1
         kind: Backup
         namespace: "{{ oadp_ns }}"
@@ -207,8 +212,8 @@
       register: backup_status
       retries: 30
       delay: 20
-      until: backup_status.resources[0].status.phase == 'Completed'
+      until: (backup_status.resources | default([]) | length > 0) and backup_status.resources[0].status.phase == 'Completed'
 
     - name: Confirm backup success
       debug:
-        msg: "Backup '{{ backup_name }}' completed and uploaded to S3 bucket '{{ oadp_s3_bucket }}'."
+        msg: "Backup '{{ oadp_backup_name }}' completed and uploaded to S3 bucket '{{ oadp_s3_bucket }}'."
