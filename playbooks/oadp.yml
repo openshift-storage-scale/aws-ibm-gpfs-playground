@@ -147,6 +147,7 @@
             configuration:
               velero:
                 defaultPlugins:
+                  - csi
                   - aws
                   - openshift
                   - kubevirt
