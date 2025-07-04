@@ -145,8 +145,13 @@
             namespace: "{{ oadp_ns }}"
           spec:
             configuration:
+              nodeAgent:
+                enable: true
+                uploaderType: kopia
               velero:
+                logLevel: debug
                 defaultPlugins:
+                  - csi
                   - aws
                   - openshift
                   - kubevirt
@@ -207,12 +212,14 @@
             name: "{{ oadp_backup_name }}"
             namespace: "{{ oadp_ns }}"
           spec:
+            snapshotMoveData: true
             includedNamespaces:
               - "{{ virt_test_ns }}"
-            includedResources:
-              - virtualmachines.kubevirt.io
-              - persistentvolumeclaims
-              - pods
+            # includedResources:
+            #   - virtualmachines.kubevirt.io
+            #   - virtualmachineinstance.kubevirt.io
+            #   - persistentvolumeclaims
+            #   - pods
             labelSelector:
               matchLabels:
                 app: "{{ virt_vm_name }}"
