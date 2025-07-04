@@ -179,6 +179,23 @@
       delay: 10
       until: dpa_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Reconciled') | selectattr('status', 'equalto', 'True') | list | length > 0
 
+    - name: Wait for BackupStorageLocation to be available
+      tags:
+        - oadp2
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: velero.io/v1
+        kind: BackupStorageLocation
+        namespace: "{{ oadp_ns }}"
+        name: s3-backup
+      register: backupstoragelocation
+      retries: 30
+      delay: 10
+      until: >
+        ('status' in backupstoragelocation) and
+        ('phase' in backupstoragelocation.status) and
+        (backupstoragelocation.status.phase == 'Available')
+
     - name: Create VM snapshot using OADP (Velero Backup CR)
       kubernetes.core.k8s:
         kubeconfig: "{{ kubeconfig }}"
