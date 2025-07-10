@@ -1,0 +1,17 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-infoscale-snapclass
+  annotations:
+    snapshot.storage.kubernetes.io/is-default-class: "true"
+driver: org.veritas.infoscale
+deletionPolicy: Delete
+#parameters:
+  # (optional) Specifies the type of the snapshot to be created.
+  # If omitted,  by default creates space-optimized snapshot.
+  # Supported values: space-optimized, full-instant
+  # snapType: space-optimized
+
+  # (optional) Specifies the size of the cache volume to be created for space-optimized snapshots.
+  # If omitted, InfoScale internally chooses the cacheSize as 30% of orignial volume size.
+  # cacheSize: 500m

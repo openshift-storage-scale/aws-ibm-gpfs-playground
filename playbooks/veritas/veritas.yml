@@ -1,0 +1,33 @@
+- name: Veritas InfoScale
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  tasks:
+    - name: Include dependencies
+      ansible.builtin.import_tasks: dependencies.yml
+      tags: dependencies
+
+    - name: Include install
+      ansible.builtin.import_tasks: install.yml
+      tags: install
+    
+    # "when" is parsed when including a task not when importing
+    # all tasks inside the included file should have tag(s) unlike when 
+    # importing tasks are not automatically tagged.
+    - name: Include cleanup
+      include_tasks: cleanup.yml
+      tags: cleanup
+      when: "'cleanup' in ansible_run_tags"
+
+    - name: Test Veritas InfoScale
+      include_tasks: test.yml
+      tags: test
+      when: "'test' in ansible_run_tags"
+
+    - name: Operations for Veritas InfoScale
+      include_tasks: ops.yml
+      tags: ops
+      when: "'ops' in ansible_run_tags"
