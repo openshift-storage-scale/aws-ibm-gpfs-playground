@@ -39,6 +39,10 @@ virt: ## Configures the virt bits (only for POWER90)
 oadp: ## Configures oadp
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/oadp.yml
 
+.PHONY: ceph
+ceph: ## Configures ceph
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ceph.yml
+
 .PHONY: iib
 iib: ## Install an iib on an OCP cluster on AWS
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/iib.yml

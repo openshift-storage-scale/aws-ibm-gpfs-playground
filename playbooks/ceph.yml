@@ -1,0 +1,68 @@
+---
+- name: Playbook to set up ceph
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  tasks:
+    - name: Print AWS infos
+      ansible.builtin.debug:
+        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }}"
+
+    - name: Template ceph files
+      tags:
+        - ceph1
+      ansible.builtin.template:
+        src: ../templates/{{ item }}
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - ceph-subscription.yaml
+        - ceph-objectstore.yaml
+        - ceph-route.yaml
+        - ceph-storageclass.yaml
+        - ceph-storagecluster.yaml
+
+    - name: Apply ceph subscription
+      tags:
+        - ceph1
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: ceph_apply
+      until: ceph_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - ceph-subscription.yaml
+
+    - name: Label the workers for ceph
+      tags:
+        - ceph1
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG={{ kubeconfig }}
+        for node in $({{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name)
+        do
+          {{ oc_bin }} label ${node} cluster.ocs.openshift.io/openshift-storage=''
+        done
+
+    - name: Apply ceph templates
+      tags:
+        - ceph1
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: ceph_apply
+      until: ceph_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - ceph-objectstore.yaml
+        - ceph-route.yaml
+        - ceph-storageclass.yaml
+        - ceph-storagecluster.yaml
