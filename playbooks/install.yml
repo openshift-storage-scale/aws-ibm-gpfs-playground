@@ -13,6 +13,25 @@
       ansible.builtin.debug:
         msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
 
+    - name: Get AWS caller identity for Owner tag
+      tags:
+        - 1_ocp_install
+      amazon.aws.aws_caller_info:
+        profile: "{{ aws_profile }}"
+      register: aws_caller_info
+
+    - name: Set OCP owner from AWS user
+      tags:
+        - 1_ocp_install
+      ansible.builtin.set_fact:
+        ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
+
+    - name: Print Owner info
+      tags:
+        - 1_ocp_install
+      ansible.builtin.debug:
+        msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"
+
     - name: Verify htpasswd exists
       ansible.builtin.command:
         cmd: which htpasswd
