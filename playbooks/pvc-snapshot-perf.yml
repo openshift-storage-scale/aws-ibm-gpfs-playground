@@ -37,7 +37,7 @@
         state: absent
         kind: Namespace
         name: "{{ namespace }}"
-  
+
     - name: Wait for the namespace to be fully deleted
       kubernetes.core.k8s_info:
         kubeconfig: "{{ kubeconfig }}"
@@ -47,7 +47,7 @@
       until: ns_status.resources | length == 0
       retries: 30
       delay: 5
-      
+
     - name: Create NS
       kubernetes.core.k8s:
         kubeconfig: "{{ kubeconfig }}"
