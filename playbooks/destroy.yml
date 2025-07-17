@@ -98,7 +98,7 @@
       set_fact:
         my_policy_arn: "{{ item.arn }}"
       loop: "{{ policy_info.policies }}"
-      when: item.policy_name == "{{ oadp_s3_bucket }}-owner-policy"
+      when: item.policy_name | default('') == "{{ oadp_s3_bucket }}-owner-policy"
 
     - name: Delete the IAM policy
       tags:
