@@ -1,0 +1,126 @@
+---
+- name: PVC Snapshot Test
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    namespace: perf-pvc
+    storage_class: ibm-test-sc
+    snapshot_class: ibm-spectrum-scale-snapshot-class-consistency-group
+    original_pvc_name: test-pvc
+    snapshot_name: test-snapshot
+    cloned_pvc_name: cloned-pvc
+    volume_size: 10Gi
+    iterations: "{{ range(1, 11) | list }}"
+  tasks:
+    - name: Delete snapshot PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: PersistentVolumeClaim
+        name: "{{ cloned_pvc_name }}-{{ item }}"
+        namespace: "{{ namespace }}"
+      loop: "{{ iterations }}"
+
+    - name: Delete PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: PersistentVolumeClaim
+        name: "{{ original_pvc_name }}-{{ item }}"
+        namespace: "{{ namespace }}"
+      loop: "{{ iterations }}"
+
+    - name: Delete NS
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Namespace
+        name: "{{ namespace }}"
+  
+    - name: Wait for the namespace to be fully deleted
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Namespace
+        name: "{{ namespace }}"
+      register: ns_status
+      until: ns_status.resources | length == 0
+      retries: 30
+      delay: 5
+      
+    - name: Create NS
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespace }}"
+          spec:
+
+    - name: Create initial PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{ original_pvc_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: "{{ volume_size }}"
+            storageClassName: "{{ storage_class }}"
+
+    - name: Create a pod to write 10G zero data to the PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: fill-zero-data
+            namespace: "{{ namespace }}"
+          spec:
+            containers:
+              - name: writer
+                image: registry.redhat.io/ubi9/ubi:latest
+                command: ["/bin/sh", "-c"]
+                args:
+                  - dd if=/dev/zero of=/data/testfile bs=1M count=10240; sync
+                volumeMounts:
+                  - name: data-vol
+                    mountPath: /data
+            restartPolicy: Never
+            volumes:
+              - name: data-vol
+                persistentVolumeClaim:
+                  claimName: "{{ original_pvc_name }}"
+
+    - name: Wait for the pod to complete writing data
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ namespace }}"
+        name: fill-zero-data
+      register: pod_status
+      until: pod_status.resources | length > 0 and pod_status.resources[0].status.phase in ['Succeeded']
+      retries: 20
+      delay: 15
+
+    - name: Delete the pod after data fill
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Pod
+        namespace: "{{ namespace }}"
+        name: fill-zero-data
+
+    - name: Run iterations
+      include_tasks: pvc-snapshot-loop.yml
+      loop: "{{ iterations }}"

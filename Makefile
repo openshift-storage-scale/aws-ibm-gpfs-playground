@@ -39,6 +39,10 @@ virt: ## Configures the virt bits (only for POWER90)
 oadp: ## Configures oadp
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/oadp.yml
 
+.PHONY: pvc-snapshot-perf
+pvc-snapshot-perf: ## Runs a perf pvc -> snapshot -> pvc test
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/pvc-snapshot-perf.yml
+
 .PHONY: ceph
 ceph: ## Configures ceph
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ceph.yml
