@@ -11,7 +11,7 @@
     snapshot_name: test-snapshot
     cloned_pvc_name: cloned-pvc
     volume_size: 10Gi
-    iterations: "{{ range(1, 11) | list }}"
+    iterations: "{{ range(1, 21) | list }}"
   tasks:
     - name: Delete snapshot PVC
       kubernetes.core.k8s:
@@ -133,6 +133,10 @@
       ansible.builtin.set_fact:
         end_time: "{{ lookup('pipe', 'date +%s') | int }}"
 
+    - name: Set elapsed time in seconds
+      ansible.builtin.set_fact:
+        elapsed_time: "{{ end_time | int - start_time | int }}"
+
     - name: Total time
       ansible.builtin.debug:
-        msg: "Elapsed time: {{ end_time - start_time }} seconds"
+        msg: "Elapsed time: {{ elapsed_time }} seconds"

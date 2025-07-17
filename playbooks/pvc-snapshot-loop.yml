@@ -1,3 +1,7 @@
+- name: Iteration
+  ansible.builtin.debug:
+    msg: "Iteration {{ item }}"
+
 - name: Create snapshot of the PVC
   kubernetes.core.k8s:
     state: present
