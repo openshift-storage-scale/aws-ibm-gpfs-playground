@@ -121,6 +121,18 @@
         namespace: "{{ namespace }}"
         name: fill-zero-data
 
+    - name: Record start time (epoch)
+      ansible.builtin.set_fact:
+        start_time: "{{ lookup('pipe', 'date +%s') | int }}"
+
     - name: Run iterations
-      include_tasks: pvc-snapshot-loop.yml
+      ansible.builtin.include_tasks: pvc-snapshot-loop.yml
       loop: "{{ iterations }}"
+
+    - name: Record end time (epoch)
+      ansible.builtin.set_fact:
+        end_time: "{{ lookup('pipe', 'date +%s') | int }}"
+
+    - name: Total time
+      ansible.builtin.debug:
+        msg: "Elapsed time: {{ end_time - start_time }} seconds"
