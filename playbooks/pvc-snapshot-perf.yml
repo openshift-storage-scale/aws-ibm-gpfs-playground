@@ -139,4 +139,4 @@
 
     - name: Total time
       ansible.builtin.debug:
-        msg: "Elapsed time: {{ elapsed_time }} seconds"
+        msg: "Elapsed time for {{ storage_class }} - {{ snapshot_class }}: {{ elapsed_time }} seconds"
