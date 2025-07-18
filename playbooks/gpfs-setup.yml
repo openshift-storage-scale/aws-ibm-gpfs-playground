@@ -43,8 +43,8 @@
     fi
   register: fusion_apply
   until: fusion_apply is not failed
-  retries: 20
-  delay: 20
+  retries: 30
+  delay: 30
 
 - name: Get the Volume ID by Tag Name again
   tags:
