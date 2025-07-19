@@ -48,6 +48,15 @@
       retries: 30
       delay: 5
 
+    - name: CSV file date
+      ansible.builtin.shell:
+        date +"%Y-%m-%d"
+      register: iso_date
+
+    - name: Set CSV file fact
+      ansible.builtin.set_fact:
+        output_csv: "/tmp/pvc-perf-{{ iso_date.stdout }}.csv"
+
     - name: Create NS
       kubernetes.core.k8s:
         kubeconfig: "{{ kubeconfig }}"
@@ -140,3 +149,7 @@
     - name: Total time
       ansible.builtin.debug:
         msg: "Elapsed time for {{ storage_class }} - {{ snapshot_class }}: {{ elapsed_time }} seconds"
+
+    - name: Record entry in csv file
+      ansible.builtin.shell: |
+        echo "{{ storage_class }};{{ snapshot_class }};{{ elapsed_time }}" >> "{{ output_csv }}"
