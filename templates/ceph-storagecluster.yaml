@@ -39,13 +39,12 @@ spec:
     dataPVCTemplate:
       metadata: {}
       spec:
-        storageClassName: gp3-csi
+        storageClassName: "{{ lso_sc }}"
         accessModes:
         - ReadWriteOnce
         volumeMode: Block
         resources:
           requests:
-            storage: 2Ti
+            storage: 120Gi
       status: {}
     portable: true
-

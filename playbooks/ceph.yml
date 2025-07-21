@@ -29,7 +29,6 @@
         mode: "0644"
       loop:
         - lso-subscription.yaml
-        - lso-lv.yaml
 
     - name: Apply lso subscription and lvs
       tags:
@@ -44,7 +43,6 @@
       delay: 10
       loop:
         - lso-subscription.yaml
-        - lso-lvs.yaml
 
     - name: Find OpenShift EC2 Instances
       tags:
@@ -92,6 +90,32 @@
       ansible.builtin.debug:
         msg: "{{ ebs_volumes }}"
 
+    - name: Set ceph disks
+      ansible.builtin.set_fact:
+        ceph_disks: "{{ ebs_volumes.results | map(attribute='volume.id') | list }}"
+
+    - name: Template LV
+      tags:
+        - lso1
+      ansible.builtin.template:
+        src: ../templates/{{ item }}
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - lso-lv.yaml
+
+    - name: Apply lv
+      tags:
+        - lso1
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: lso_apply
+      until: lso_apply is not failed
+      loop:
+        - lso-lv.yaml
+
     - name: Template ceph files
       tags:
         - ceph1
@@ -130,10 +154,6 @@
         do
           {{ oc_bin }} label ${node} cluster.ocs.openshift.io/openshift-storage=''
         done
-
-    - name: stop
-      ansible.builtin.fail:
-        msg: "STOP HERE"
 
     - name: Apply ceph templates
       tags:
