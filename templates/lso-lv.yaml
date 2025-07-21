@@ -16,5 +16,5 @@ spec:
       volumeMode: Block
       devicePaths:
 {% for disk in ceph_disks %}
-        - {{ disk }}
-{%- endfor %}
+        - /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ disk.replace("-", "") }}
+{% endfor -%}

@@ -90,9 +90,22 @@
       ansible.builtin.debug:
         msg: "{{ ebs_volumes }}"
 
+    - name: Check if all items have 'volume_id'
+      assert:
+        that: item.volume_id is defined
+        fail_msg: "Missing volume_id in one of the results"
+      loop: "{{ ebs_volumes.results }}"
+      register: has_volume_id
+
     - name: Set ceph disks
       ansible.builtin.set_fact:
         ceph_disks: "{{ ebs_volumes.results | map(attribute='volume.id') | list }}"
+      when: has_volume_id is failed
+
+    - name: Set ceph disks if not created from scratch
+      ansible.builtin.set_fact:
+        ceph_disks: "{{ ebs_volumes.results | map(attribute='volume_id') | list }}"
+      when: has_volume_id is not failed
 
     - name: Template LV
       tags:
