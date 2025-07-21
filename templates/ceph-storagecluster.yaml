@@ -25,6 +25,15 @@ spec:
       requests:
         cpu: '1'
         memory: 4Gi
+  monPVCTemplate:
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 30Gi
+      storageClassName: gp2-csi
+      volumeMode: Filesystem
   storageDeviceSets:
   - name: ocs-deviceset
     config: {}
