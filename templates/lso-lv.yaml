@@ -1,0 +1,20 @@
+apiVersion: local.storage.openshift.io/v1
+kind: LocalVolume
+metadata:
+  name: local-block
+  namespace: "{{ lso_ns }}"
+spec:
+  nodeSelector:
+    nodeSelectorTerms:
+    - matchExpressions:
+        - key: cluster.ocs.openshift.io/openshift-storage
+          operator: In
+          values:
+          - ""
+  storageClassDevices:
+    - storageClassName: "{{ lso_sc }}"
+      volumeMode: Block
+      devicePaths:
+{% for disk in ceph_disks %}
+        - {{ disk }}
+{%- endfor %}

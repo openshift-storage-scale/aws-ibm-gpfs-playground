@@ -51,8 +51,10 @@ ocp_arch: "amd64"
 
 aws_profile: "default"
 ebs_volume_size: 150
+ebs_volume_size_ceph: 160
 ebs_volume_type: "io2"
 ebs_device_name: "/dev/sdd"
+ebs_device_name_ceph: "/dev/sde"
 ebs_iops: 5000
 # These are unused unless doing the power90
 ebs_volume_size_two: 150
@@ -115,6 +117,8 @@ oadp_s3_secret: "aws-s3-secret"
 oadp_backup_name: "backup1"
 
 ceph_ns: "openshift-storage"
+lso_ns: "openshift-local-storage"
+lso_sc: "lso-sc"
 
 iscsi_target_iqn: iqn.2024-02.com.example
 iscsi_target_primary_ip: 10.0.100.100
