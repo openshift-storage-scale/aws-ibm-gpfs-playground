@@ -267,6 +267,7 @@
         iops: "{{ ebs_iops }}"
         tags:
           Name: "{{ gpfs_volume_name }}"
+          Owner: "{{ ocp_owner }}"
       register: ebs_volume
 
     - name: Attach EBS volume to workers
@@ -294,6 +295,7 @@
         iops: "{{ ebs_iops_two }}"
         tags:
           Name: "{{ gpfs_volume_name_two }}"
+          Owner: "{{ ocp_owner }}"
       register: ebs_volume_two
       when: power_ninety | bool
 

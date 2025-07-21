@@ -3,3 +3,4 @@ overrides.yml
 .venv
 .tmp
 infra
+.vscode/
