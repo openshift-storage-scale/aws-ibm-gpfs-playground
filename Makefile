@@ -80,6 +80,10 @@ iscsi-cleanup: ## Removes iscsi ec2 resources
 list-tags: ## Lists all tags in the install playbook
 	ansible-playbook --list-tags playbooks/install.yml
 
+.PHONY: ansible-deps
+ansible-deps: ## Install Ansible dependencies
+	ansible-galaxy collection install -r requirements.yml
+
 ##@ CI / Linter tasks
 .PHONY: lint
 lint: ## Run ansible-lint on the codebase
