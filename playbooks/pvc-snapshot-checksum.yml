@@ -38,7 +38,7 @@
 - name: Store the md5 output
   ansible.builtin.shell: |
     export KUBECONFIG="{{ kubeconfig }}"
-    oc logs checksum-data
+    {{ oc_bin }} logs checksum-data
   register: snapshot_md5
 
 - name: Put the md5 output in a dictionary

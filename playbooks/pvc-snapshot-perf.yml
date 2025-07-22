@@ -126,7 +126,7 @@
     - name: Store the md5 in a variable
       ansible.builtin.shell: |
         export KUBECONFIG="{{ kubeconfig }}"
-        oc logs fill-data
+        {{ oc_bin }} logs fill-data
       register: original_md5
 
     - name: Debug original md5sum
