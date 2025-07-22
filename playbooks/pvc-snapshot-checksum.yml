@@ -1,3 +1,7 @@
+- name: Checksum Iteration
+  ansible.builtin.debug:
+    msg: "Iteration {{ item }}"
+
 - name: Create a pod to calculate checksum for snapshot
   kubernetes.core.k8s:
     kubeconfig: "{{ kubeconfig }}"
@@ -38,12 +42,16 @@
 - name: Store the md5 output
   ansible.builtin.shell: |
     export KUBECONFIG="{{ kubeconfig }}"
-    {{ oc_bin }} logs checksum-data
+    {{ oc_bin }} logs -n {{ namespace }} checksum-data
   register: snapshot_md5
 
 - name: Put the md5 output in a dictionary
   ansible.builtin.set_fact:
     md5_dict: "{{ md5_dict | combine({item: snapshot_md5.stdout}) }}"
+
+- name: Print md5 output 
+  ansible.builtin.debug:
+    msg: "{{ snapshot_md5.stdout }}"
 
 - name: Delete the pod after data fill
   kubernetes.core.k8s:
