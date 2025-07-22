@@ -25,6 +25,15 @@ spec:
       requests:
         cpu: '1'
         memory: 4Gi
+  monPVCTemplate:
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 30Gi
+      storageClassName: gp2-csi
+      volumeMode: Filesystem
   storageDeviceSets:
   - name: ocs-deviceset
     config: {}
@@ -39,13 +48,12 @@ spec:
     dataPVCTemplate:
       metadata: {}
       spec:
-        storageClassName: gp3-csi
+        storageClassName: "{{ lso_sc }}"
         accessModes:
         - ReadWriteOnce
         volumeMode: Block
         resources:
           requests:
-            storage: 2Ti
+            storage: 120Gi
       status: {}
     portable: true
-
