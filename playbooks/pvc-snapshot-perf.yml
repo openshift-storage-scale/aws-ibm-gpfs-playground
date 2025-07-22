@@ -13,6 +13,7 @@
     volume_size: 10Gi
     iterations: "{{ range(1, 21) | list }}"
     md5_dict: {}
+    do_checksums: true
   tasks:
     - name: Delete snapshot PVC
       kubernetes.core.k8s:
@@ -168,10 +169,12 @@
     - name: Calculate the checksums for all the snapshots
       ansible.builtin.include_tasks: pvc-snapshot-checksum.yml
       loop: "{{ iterations }}"
+      when: do_checksums | bool
 
     - name: Print checksums
       ansible.builtin.debug:
         msg: "Original md5 {{ original_md5.stdout }}: {{ md5_dict | to_nice_yaml }}"
+      when: do_checksums | bool
 
     - name: Make sure the checksums are all correct
       ansible.builtin.assert:
@@ -181,3 +184,4 @@
       loop_control:
         loop_var: item
         label: "{{ md5_dict[item] }}"
+      when: do_checksums | bool
