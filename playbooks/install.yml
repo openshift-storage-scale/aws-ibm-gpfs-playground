@@ -13,6 +13,25 @@
       ansible.builtin.debug:
         msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
 
+    - name: Get AWS caller identity for Owner tag
+      tags:
+        - 1_ocp_install
+      amazon.aws.aws_caller_info:
+        profile: "{{ aws_profile }}"
+      register: aws_caller_info
+
+    - name: Set OCP owner from AWS user
+      tags:
+        - 1_ocp_install
+      ansible.builtin.set_fact:
+        ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
+
+    - name: Print Owner info
+      tags:
+        - 1_ocp_install
+      ansible.builtin.debug:
+        msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"
+
     - name: Verify htpasswd exists
       ansible.builtin.command:
         cmd: which htpasswd
@@ -112,7 +131,7 @@
 
     - name: Create gpfs folder
       tags:
-        - 1_ocp_install_mco
+        - 1_ocp_install
       ansible.builtin.file:
         path: "{{ gpfsfolder }}"
         state: directory
@@ -132,47 +151,47 @@
         {{ butane_bin }} "{{ gpfsfolder }}/mco.yaml" -o "{{ gpfsfolder }}/99-mco-butaned.yaml"
 
     # We apply the MCO template right away as it makes for less errors
-    - name: Apply MCO template
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.shell: |
-        set -ex
-        export KUBECONFIG={{ kubeconfig }}
-        {{ oc_bin }} apply -f {{ gpfsfolder }}/99-mco-butaned.yaml
+    # - name: Apply MCO template
+    #   tags:
+    #     - 1_ocp_install_mco
+    #   ansible.builtin.shell: |
+    #     set -ex
+    #     export KUBECONFIG={{ kubeconfig }}
+    #     {{ oc_bin }} apply -f {{ gpfsfolder }}/99-mco-butaned.yaml
 
     # FIXME(bandini): Sleep here for a bit so we're sure it is started
     # later we should wait for the mcp's to go in updating status and then
     # wait for the finished condition
-    - name: Wait a bit for MCP to start
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.pause:
-        minutes: 1
-
-    - name: Speed up MCO
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.shell: |
-        set -ex
-        export KUBECONFIG={{ kubeconfig }}
-        {{ oc_bin }} patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
-
-    - name: Wait for MCP to settle
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.shell: |
-        set -ex
-        export KUBECONFIG={{ kubeconfig }}
-        if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
-          exit 1
-        fi
-        if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
-          exit 1
-        fi
-      retries: 40
-      delay: 90
-      register: mcp_ready
-      until: mcp_ready is not failed
+    # - name: Wait a bit for MCP to start
+    #   tags:
+    #     - 1_ocp_install_mco
+    #   ansible.builtin.pause:
+    #     minutes: 1
+    #
+    # - name: Speed up MCO
+    #   tags:
+    #     - 1_ocp_install_mco
+    #   ansible.builtin.shell: |
+    #     set -ex
+    #     export KUBECONFIG={{ kubeconfig }}
+    #     {{ oc_bin }} patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
+    #
+    # - name: Wait for MCP to settle
+    #   tags:
+    #     - 1_ocp_install_mco
+    #   ansible.builtin.shell: |
+    #     set -ex
+    #     export KUBECONFIG={{ kubeconfig }}
+    #     if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
+    #       exit 1
+    #     fi
+    #     if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
+    #       exit 1
+    #     fi
+    #   retries: 40
+    #   delay: 90
+    #   register: mcp_ready
+    #   until: mcp_ready is not failed
 
     # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Gather security group info for workers
@@ -248,6 +267,7 @@
         iops: "{{ ebs_iops }}"
         tags:
           Name: "{{ gpfs_volume_name }}"
+          Owner: "{{ ocp_owner }}"
       register: ebs_volume
 
     - name: Attach EBS volume to workers
@@ -275,6 +295,7 @@
         iops: "{{ ebs_iops_two }}"
         tags:
           Name: "{{ gpfs_volume_name_two }}"
+          Owner: "{{ ocp_owner }}"
       register: ebs_volume_two
       when: power_ninety | bool
 

@@ -1,0 +1,187 @@
+---
+- name: PVC Snapshot Test
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    namespace: perf-pvc
+    storage_class: ibm-test-sc
+    snapshot_class: ibm-spectrum-scale-snapshot-class-consistency-group
+    original_pvc_name: test-pvc
+    snapshot_name: test-snapshot
+    cloned_pvc_name: cloned-pvc
+    volume_size: 10Gi
+    iterations: "{{ range(1, 21) | list }}"
+    md5_dict: {}
+    do_checksums: true
+  tasks:
+    - name: Delete snapshot PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: PersistentVolumeClaim
+        name: "{{ cloned_pvc_name }}-{{ item }}"
+        namespace: "{{ namespace }}"
+      loop: "{{ iterations }}"
+
+    - name: Delete PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: PersistentVolumeClaim
+        name: "{{ original_pvc_name }}-{{ item }}"
+        namespace: "{{ namespace }}"
+      loop: "{{ iterations }}"
+
+    - name: Delete NS
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Namespace
+        name: "{{ namespace }}"
+
+    - name: Wait for the namespace to be fully deleted
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Namespace
+        name: "{{ namespace }}"
+      register: ns_status
+      until: ns_status.resources | length == 0
+      retries: 30
+      delay: 5
+
+    - name: CSV file date
+      ansible.builtin.shell:
+        date +"%Y-%m-%d"
+      register: iso_date
+
+    - name: Set CSV file fact
+      ansible.builtin.set_fact:
+        output_csv: "/tmp/pvc-perf-{{ iso_date.stdout }}.csv"
+
+    - name: Create NS
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespace }}"
+          spec:
+
+    - name: Create initial PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{ original_pvc_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: "{{ volume_size }}"
+            storageClassName: "{{ storage_class }}"
+
+    - name: Create a pod to write 5Gi random data to the PVC
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: fill-data
+            namespace: "{{ namespace }}"
+          spec:
+            containers:
+              - name: writer
+                image: registry.redhat.io/ubi9/ubi:latest
+                command: ["/bin/sh", "-c"]
+                args:
+                  - dd if=/dev/urandom of=/data/testfile bs=1M count=5120 &> /dev/null; md5sum /data/testfile
+                volumeMounts:
+                  - name: data-vol
+                    mountPath: /data
+            restartPolicy: Never
+            volumes:
+              - name: data-vol
+                persistentVolumeClaim:
+                  claimName: "{{ original_pvc_name }}"
+
+    - name: Wait for the pod to complete writing data and doing md5sum
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        kind: Pod
+        namespace: "{{ namespace }}"
+        name: fill-data
+      register: pod_status
+      until: pod_status.resources | length > 0 and pod_status.resources[0].status.phase in ['Succeeded']
+      retries: 20
+      delay: 15
+
+    - name: Store the md5 in a variable
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} logs -n {{ namespace }} fill-data
+      register: original_md5
+
+    - name: Debug original md5sum
+      ansible.builtin.debug:
+        msg: "{{ original_md5 }}"
+
+    - name: Delete the pod after data fill
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Pod
+        namespace: "{{ namespace }}"
+        name: fill-data
+
+    - name: Record start time (epoch)
+      ansible.builtin.set_fact:
+        start_time: "{{ lookup('pipe', 'date +%s') | int }}"
+
+    - name: Run iterations
+      ansible.builtin.include_tasks: pvc-snapshot-loop.yml
+      loop: "{{ iterations }}"
+
+    - name: Record end time (epoch)
+      ansible.builtin.set_fact:
+        end_time: "{{ lookup('pipe', 'date +%s') | int }}"
+
+    - name: Set elapsed time in seconds
+      ansible.builtin.set_fact:
+        elapsed_time: "{{ end_time | int - start_time | int }}"
+
+    - name: Total time
+      ansible.builtin.debug:
+        msg: "Elapsed time for {{ storage_class }} - {{ snapshot_class }}: {{ elapsed_time }} seconds"
+
+    - name: Record entry in csv file
+      ansible.builtin.shell: |
+        echo "{{ storage_class }};{{ snapshot_class }};{{ elapsed_time }}" >> "{{ output_csv }}"
+
+    - name: Calculate the checksums for all the snapshots
+      ansible.builtin.include_tasks: pvc-snapshot-checksum.yml
+      loop: "{{ iterations }}"
+      when: do_checksums | bool
+
+    - name: Print checksums
+      ansible.builtin.debug:
+        msg: "Original md5 {{ original_md5.stdout }}: {{ md5_dict | to_nice_yaml }}"
+      when: do_checksums | bool
+
+    - name: Make sure the checksums are all correct
+      ansible.builtin.assert:
+        that:
+          - md5_dict[item] == original_md5.stdout
+      loop: "{{ iterations }}"
+      loop_control:
+        loop_var: item
+        label: "{{ md5_dict[item] | default('N/A') }}"
+      when: do_checksums | bool

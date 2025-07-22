@@ -12,6 +12,23 @@
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file
 
+    - name: Find OpenShift EC2 Instances
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ocp_cluster_name }}*worker*"
+          "instance-state-name": "running"
+      register: ec2_workers
+
+    - name: Set EC2 workers instance IDs
+      ansible.builtin.set_fact:
+        worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
+
+    - name: Debug worker instance IDs
+      ansible.builtin.debug:
+        msg: "{{ worker_ec2_ids }}"
+
     - name: Destroy ocp cluster
       tags:
         - ocp_destroy
@@ -65,3 +82,155 @@
         state: absent
       loop: "{{ volume_info_two.volumes }}"
       when: power_ninety | bool and volume_info_two.volumes | length > 0
+
+    # Delete any ceph volumes
+    - name: Get the Volume ID for ceph volumes
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ceph_volume_name }}-{{ item }}"
+      register: ceph_volumes
+      loop: "{{ worker_ec2_ids }}"
+
+    - name: Debug ceph volumes
+      ansible.builtin.debug:
+        msg: "Ceph volumes: {{ ceph_volumes }}"
+
+    - name: Delete EBS ceph volumes
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ ceph_volumes.volumes }}"
+      when: ceph_volumes.volumes | default([]) | length > 0
+      failed_when: false
+
+    - name: Destroy oadp s3 bucket
+      tags:
+        - oadp
+      amazon.aws.s3_bucket:
+        name: "{{ oadp_s3_bucket }}"
+        state: absent
+        force: true
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: Get IAM policy ARN by name
+      tags:
+        - oadp
+      amazon.aws.iam_policy_info:
+        iam_type: user
+        iam_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: policy_info
+
+    - name: Print ARN policies for user
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ policy_info }}"
+
+    - name: Set fact for the policy ARN
+      tags:
+        - oadp
+      set_fact:
+        my_policy_arn: "{{ item.arn }}"
+      loop: "{{ policy_info.policies }}"
+      when: item.policy_name | default('') == "{{ oadp_s3_bucket }}-owner-policy"
+
+    - name: Delete the IAM policy
+      tags:
+        - oadp
+      amazon.aws.iam_policy:
+        name: "{{ oadp_s3_policy }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: List IAM user's access keys
+      tags:
+        - oadp
+      amazon.aws.iam_access_key_info:
+        user_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: key_info
+
+    - name: Delete IAM access key
+      tags:
+        - oadp
+      amazon.aws.iam_access_key:
+        user_name: "{{ oadp_s3_owner }}"
+        id: "{{ item.access_key_id }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      loop: "{{ key_info.access_keys }}"
+      failed_when: false
+      register: key_delete_result
+
+    - name: Debug key delete
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ key_delete_result }}"
+
+    - name: Delete the IAM s3 user with policy
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent
+        profile: "{{ aws_profile }}"
+        managed_policies:
+          - "{{ my_policy_arn }}"
+      failed_when: false
+      when: my_policy_arn is defined
+
+    - name: Delete the IAM s3 user
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent
+        profile: "{{ aws_profile }}"
+      failed_when: false
+      when: my_policy_arn is not defined
+
+    # This is needed mainly when destroying with the oadp tag
+    - name: Delete Secret for AWS credentials
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Secret
+        api_version: v1
+        name: "{{ oadp_s3_secret }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete DataProtectionApplication (DPA)
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: DataProtectionApplication
+        api_version: oadp.openshift.io/v1alpha1
+        name: "{{ oadp_dpa_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete backup
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        api_version: velero.io/v1
+        kind: Backup
+        name: "{{ oadp_backup_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false

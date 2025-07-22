@@ -1,0 +1,24 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: s3-rgw
+  namespace: openshift-storage
+  labels:
+    app: rook-ceph-rgw
+    ceph_daemon_id: ocs-storagecluster-cephobjectstore
+    rgw: ocs-storagecluster-cephobjectstore
+    rook_cluster: openshift-storage
+    rook_object_store: ocs-storagecluster-cephobjectstore
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  to:
+    kind: Service
+    name: rook-ceph-rgw-ocs-storagecluster-cephobjectstore
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Allow
+  wildcardPolicy: None

@@ -34,6 +34,8 @@ networking:
 platform:
   aws:
     region: {{ ocp_region }}
+    userTags:
+      Owner: "{{ ocp_owner }}"
 pullSecret: '{{ pullsecret | regex_replace('\'', '"') }}'
 sshKey: |
   {{ ssh_pubkey | regex_replace('"', '') }}

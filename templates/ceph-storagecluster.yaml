@@ -1,0 +1,59 @@
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  namespace: openshift-storage
+  name: ocs-storagecluster
+spec:
+  resources:
+    mon:
+      requests:
+        cpu: '1'
+        memory: 2Gi
+    mds:
+      requests:
+        cpu: '3'
+        memory: 8Gi
+    mgr:
+      requests:
+        cpu: '1'
+        memory: 3Gi
+    noobaa-core:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+    noobaa-db:
+      requests:
+        cpu: '1'
+        memory: 4Gi
+  monPVCTemplate:
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 30Gi
+      storageClassName: gp2-csi
+      volumeMode: Filesystem
+  storageDeviceSets:
+  - name: ocs-deviceset
+    config: {}
+    count: 1
+    replica: 3
+    resources:
+      requests:
+        cpu: '2'
+        memory: 5Gi
+    placement: {}
+    preparePlacement: {}
+    dataPVCTemplate:
+      metadata: {}
+      spec:
+        storageClassName: "{{ lso_sc }}"
+        accessModes:
+        - ReadWriteOnce
+        volumeMode: Block
+        resources:
+          requests:
+            storage: 120Gi
+      status: {}
+    portable: true
