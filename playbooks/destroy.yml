@@ -12,6 +12,23 @@
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file
 
+    - name: Find OpenShift EC2 Instances
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ocp_cluster_name }}*worker*"
+          "instance-state-name": "running"
+      register: ec2_workers
+
+    - name: Set EC2 workers instance IDs
+      ansible.builtin.set_fact:
+        worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
+
+    - name: Debug worker instance IDs
+      ansible.builtin.debug:
+        msg: "{{ worker_ec2_ids }}"
+
     - name: Destroy ocp cluster
       tags:
         - ocp_destroy
@@ -65,6 +82,29 @@
         state: absent
       loop: "{{ volume_info_two.volumes }}"
       when: power_ninety | bool and volume_info_two.volumes | length > 0
+
+    # Delete any ceph volumes
+    - name: Get the Volume ID for ceph volumes
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ceph_volume_name }}-{{ item }}"
+      register: ceph_volumes
+      loop: "{{ worker_ec2_ids }}"
+
+    - name: Debug ceph volumes
+      ansible.builtin.debug:
+        msg: "Ceph volumes: {{ ceph_volumes }}"
+
+    - name: Delete EBS ceph volumes
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ ceph_volumes.volumes }}"
+      when: ceph_volumes.volumes | default([]) | length > 0
 
     - name: Destroy oadp s3 bucket
       tags:

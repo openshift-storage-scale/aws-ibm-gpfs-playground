@@ -80,7 +80,7 @@
         iops: "{{ ebs_iops }}"
         device_name: "{{ ebs_device_name_ceph }}"
         tags:
-          Name: "{{ gpfs_volume_name }}-{{ item }}"
+          Name: "{{ ceph_volume_name }}-{{ item }}"
       register: ebs_volumes
       loop: "{{ worker_ec2_ids }}"
 

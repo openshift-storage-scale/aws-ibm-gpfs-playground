@@ -178,3 +178,6 @@
         that:
           - md5_dict[item] == original_md5.stdout
       loop: "{{ iterations }}"
+      loop_control:
+        loop_var: item
+        label: "{{ md5_dict[item] }}"

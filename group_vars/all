@@ -117,6 +117,7 @@ oadp_s3_secret: "aws-s3-secret"
 oadp_backup_name: "backup1"
 
 ceph_ns: "openshift-storage"
+ceph_volume_name: "ceph-ebs"
 lso_ns: "openshift-local-storage"
 lso_sc: "lso-sc"
 
