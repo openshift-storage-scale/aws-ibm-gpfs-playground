@@ -1,0 +1,54 @@
+- name: Create a pod to calculate checksum for snapshot
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: checksum-data
+        namespace: "{{ namespace }}"
+      spec:
+        containers:
+          - name: writer
+            image: registry.redhat.io/ubi9/ubi:latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - md5sum /data/testfile
+            volumeMounts:
+              - name: data-vol
+                mountPath: /data
+        restartPolicy: Never
+        volumes:
+          - name: data-vol
+            persistentVolumeClaim:
+              claimName: "{{ cloned_pvc_name }}-{{ item }}"
+
+- name: Wait for the pod to complete md5sum
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    name: checksum-data
+  register: pod_status
+  until: pod_status.resources | length > 0 and pod_status.resources[0].status.phase in ['Succeeded']
+  retries: 20
+  delay: 15
+
+- name: Store the md5 output
+  ansible.builtin.shell: |
+    export KUBECONFIG="{{ kubeconfig }}"
+    oc logs checksum-data
+  register: snapshot_md5
+
+- name: Put the md5 output in a dictionary
+  ansible.builtin.set_fact:
+    md5_dict: "{{ md5_dict | combine({item: snapshot_md5.stdout}) }}"
+
+- name: Delete the pod after data fill
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: absent
+    kind: Pod
+    namespace: "{{ namespace }}"
+    name: checksum-data
