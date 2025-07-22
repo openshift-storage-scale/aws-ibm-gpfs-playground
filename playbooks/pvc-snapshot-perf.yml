@@ -172,3 +172,9 @@
     - name: Print checksums
       ansible.builtin.debug:
         msg: "Original md5 {{ original_md5 }}: {{ md5_dict }}"
+
+    - name: Make sure the checksums are all correct
+      ansible.builtin.assert:
+        that:
+          - md5_dict[item] == original_md5
+      loop: "{{ iterations }}"
