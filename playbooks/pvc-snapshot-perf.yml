@@ -102,7 +102,7 @@
                 image: registry.redhat.io/ubi9/ubi:latest
                 command: ["/bin/sh", "-c"]
                 args:
-                  - dd if=/dev/urandom of=/data/testfile bs=1M count=5120 &> /dev/null; sync; md5sum /data/testfile
+                  - dd if=/dev/urandom of=/data/testfile bs=1M count=5120 &> /dev/null; md5sum /data/testfile
                 volumeMounts:
                   - name: data-vol
                     mountPath: /data
