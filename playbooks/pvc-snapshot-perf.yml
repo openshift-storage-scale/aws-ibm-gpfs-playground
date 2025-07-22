@@ -87,7 +87,7 @@
                 storage: "{{ volume_size }}"
             storageClassName: "{{ storage_class }}"
 
-    - name: Create a pod to write 5Gi random data to the PVC
+    - name: Create a pod to write 10Gi random data to the PVC
       kubernetes.core.k8s:
         kubeconfig: "{{ kubeconfig }}"
         state: present
@@ -103,7 +103,7 @@
                 image: registry.redhat.io/ubi9/ubi:latest
                 command: ["/bin/sh", "-c"]
                 args:
-                  - dd if=/dev/urandom of=/data/testfile bs=1M count=5120 &> /dev/null; md5sum /data/testfile
+                  - dd if=/dev/urandom of=/data/testfile bs=1M count=10240 &> /dev/null; md5sum /data/testfile
                 volumeMounts:
                   - name: data-vol
                     mountPath: /data
