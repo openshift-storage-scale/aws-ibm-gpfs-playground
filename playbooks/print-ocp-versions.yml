@@ -2,6 +2,7 @@
 - name: Fetch OCP versions
   hosts: localhost
   gather_facts: false
+  become: false
   vars:
     ocp_url: https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/
     ocp_tmp_file: /tmp/ocp-versions.html
@@ -20,9 +21,11 @@
         grep -E '<a href="[[:digit:]]+.[[:digit:]]+.[[:digit:]]+.*">' "{{ ocp_tmp_file }}" | \
           sed -e 's/<a href="//' | sed -e 's/\/">//' | awk '{$1=$1};1' | sort --version-sort | \
           grep -w -e "^{{ item }}" | tail -n1
-        rm -f "{{ ocp_tmp_file }}"
       register: versions_output
       with_items: "{{ major_versions }}"
+
+    - name: Cleanup
+      ansible.builtin.shell: rm -f "{{ ocp_tmp_file }}"
 
     - name: Debug
       ansible.builtin.debug:

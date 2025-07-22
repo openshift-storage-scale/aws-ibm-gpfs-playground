@@ -36,7 +36,7 @@ Change it by uncommenting and tweaking at least the following lines:
 4. Make sure you read `group_vars/all` and have all the files with the secret material done
 5. Run `make ocp-clients`. This will download the needed oc + openshift-install version
    in your home folder under `~/aws-gpfs-playground/<ocp_version>`
-6. Then run either `make install` for the openshift-fusion-access operator install or `make classic-install` to use the traditional method via the steps outlined by Mario in his doc.
+6. Run `make install` to install the openshift-fusion-access operator
 
 
 ## Deletion
