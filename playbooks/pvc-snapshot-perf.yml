@@ -183,5 +183,5 @@
       loop: "{{ iterations }}"
       loop_control:
         loop_var: item
-        label: "{{ md5_dict[item] }}"
+        label: "{{ md5_dict[item] | default('N/A') }}"
       when: do_checksums | bool
