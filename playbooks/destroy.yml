@@ -105,6 +105,7 @@
         state: absent
       loop: "{{ ceph_volumes.volumes }}"
       when: ceph_volumes.volumes | default([]) | length > 0
+      failed_when: false
 
     - name: Destroy oadp s3 bucket
       tags:
