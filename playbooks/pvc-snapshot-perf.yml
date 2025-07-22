@@ -171,10 +171,10 @@
 
     - name: Print checksums
       ansible.builtin.debug:
-        msg: "Original md5 {{ original_md5 }}: {{ md5_dict | to_nice_yaml }}"
+        msg: "Original md5 {{ original_md5.stdout }}: {{ md5_dict | to_nice_yaml }}"
 
     - name: Make sure the checksums are all correct
       ansible.builtin.assert:
         that:
-          - md5_dict[item] == original_md5
+          - md5_dict[item] == original_md5.stdout
       loop: "{{ iterations }}"
