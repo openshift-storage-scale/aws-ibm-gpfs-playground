@@ -30,6 +30,7 @@ EOF
 Change it by uncommenting and tweaking at least the following lines:
    - `ocp_domain`
    - `ocp_cluster_name`
+   - `gpfs_volume_name`
    - `ocp_az`
    - `ocp_region`
 4. Make sure you read `group_vars/all` and have all the files with the secret material done
