@@ -19,7 +19,7 @@
 
     - name: Template virt subscription files
       ansible.builtin.template:
-        src: ../templates/{{ item }}
+        src: ../templates/virtualization/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
         mode: "0644"
       loop:
@@ -57,7 +57,7 @@
       tags:
         - virt1
       ansible.builtin.template:
-        src: ../templates/{{ item }}
+        src: ../templates/virtualization/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
       loop:
         - virt-ns.yaml

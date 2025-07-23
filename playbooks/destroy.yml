@@ -68,7 +68,7 @@
         filters:
           "tag:Name": "{{ gpfs_volume_name_two }}"
       register: volume_info_two
-      when: power_ninety | bool
+      when: virt_enabled | bool
 
     - name: Debug volume (2)
       ansible.builtin.debug:
@@ -81,7 +81,7 @@
         id: "{{ item.id }}"
         state: absent
       loop: "{{ volume_info_two.volumes }}"
-      when: power_ninety | bool and volume_info_two.volumes | length > 0
+      when: virt_enabled | bool and volume_info_two.volumes | length > 0
 
     # Delete any ceph volumes
     - name: Get the Volume ID for ceph volumes

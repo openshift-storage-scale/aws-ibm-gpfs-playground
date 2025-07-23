@@ -287,4 +287,4 @@
       {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
     loop:
       - storageclass2.yaml
-  when: power_ninety | bool
+  when: virt_enabled | bool

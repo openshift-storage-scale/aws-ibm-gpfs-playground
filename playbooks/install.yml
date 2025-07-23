@@ -297,7 +297,7 @@
           Name: "{{ gpfs_volume_name_two }}"
           Owner: "{{ ocp_owner }}"
       register: ebs_volume_two
-      when: power_ninety | bool
+      when: virt_enabled | bool
 
     - name: Attach EBS volume to workers (2)
       tags:
@@ -309,7 +309,7 @@
         id: "{{ ebs_volume_two.volume_id }}"
         device_name: "{{ ebs_device_name_two }}"
       loop: "{{ worker_ec2_ids }}"
-      when: ebs_volume_two.volume_id is defined and power_ninety | bool
+      when: ebs_volume_two.volume_id is defined and virt_enabled | bool
 
     # Installs GPFS with the openshift-storage-scale operator
     - name: Install gpfs bits

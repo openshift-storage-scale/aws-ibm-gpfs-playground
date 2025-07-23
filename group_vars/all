@@ -56,7 +56,7 @@ ebs_volume_type: "io2"
 ebs_device_name: "/dev/sdd"
 ebs_device_name_ceph: "/dev/sde"
 ebs_iops: 5000
-# These are unused unless doing the power90
+# These are unused unless doing virtualization
 ebs_volume_size_two: 150
 ebs_volume_type_two: "io2"
 ebs_device_name_two: "/dev/sdd"
@@ -100,7 +100,7 @@ ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
 ibmentitlementkey: "{{ lookup('file', ibmentitlementkeyfile) }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
-power_ninety: false
+virt_enabled: false
 vmpass: "{{ lookup('file', '~/.vmpass' | expanduser) }}"
 dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 

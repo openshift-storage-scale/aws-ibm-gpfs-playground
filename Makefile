@@ -5,10 +5,10 @@ endif
 
 EXTRA_VARS ?=
 
-# When true we set the default to a BM instance for Power90
-POWER90 ?= false
-ifeq ($(POWER90), true)
-	EXTRA_ARGS = -e @./overrides.yml -e @./vars/power90.yaml
+# When true we set the default to a BM instance for virtualization
+VIRT ?= false
+ifeq ($(VIRT), true)
+	EXTRA_ARGS = -e @./overrides.yml -e @./vars/virt.yaml
 endif
 
 # This section defines the test framework for the Makefile.
@@ -75,8 +75,8 @@ install: ## Install an OCP cluster on AWS using the ibm-fusion-access operator a
 	-@notify.sh "AWS install finished"
 
 .PHONY: virt
-virt: ## Configures the virt bits (only for POWER90)
-	@if [ "$(POWER90)" = "false" ]; then echo "Error, virt is only for power90"; exit 1; fi
+virt: ## Configures the virt bits (requires VIRT=true)
+	@if [ "$(VIRT)" = "false" ]; then echo "Error, virt requires VIRT=true"; exit 1; fi
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/virt.yml
 
 .PHONY: oadp
@@ -139,7 +139,7 @@ lint: ## Run ansible-lint on the codebase
 test-center_banner: ## Test the center_banner function
 	$(call center_banner,$(if $(MSG),$(MSG),Default Test message which should be centered))
 
-# Usage: `make veritas POWER90=true`
+# Usage: `make veritas VIRT=true`
 # This will provision a baremetal cluster with minimal OCP install and setup the Veritas stack.
 # or `make veritas TAGS=dependencies` to just install dependencies
 # or `make veritas TAGS=install` to install veritas stack 
@@ -148,7 +148,7 @@ test-center_banner: ## Test the center_banner function
 veritas: ## Provision cluster with minimal install and setup Veritas stack
 	@echo "TAGS: $(TAGS)"
 	@echo "TAGS_STRING: $(TAGS_STRING)"
-	@echo "POWER90: $(POWER90)"
+	@echo "VIRT: $(VIRT)"
 	@echo "EXTRA_ARGS: $(EXTRA_ARGS)"
 	@echo "EXTRA_VARS: $(EXTRA_VARS)"
 

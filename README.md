@@ -37,6 +37,29 @@ Change it by uncommenting and tweaking at least the following lines:
    in your home folder under `~/aws-gpfs-playground/<ocp_version>`
 6. Run `make install` to install the openshift-fusion-access operator
 
+## Virtualization
+
+To enable virtualization features (OpenShift Virtualization), use the VIRT flag:
+
+```bash
+# Configure virtualization components
+make virt VIRT=true
+
+# Install with virtualization enabled  
+make install VIRT=true
+
+# Run Veritas stack with virtualization
+make veritas VIRT=true
+```
+
+**Note:** Virtualization features require `VIRT=true` to be set. The virtualization configuration uses `vars/virt.yaml` and templates are organized in `templates/virtualization/`.
+
+## Template Organization
+
+Templates are organized by functionality:
+- **General templates**: `templates/`
+- **Virtualization templates**: `templates/virtualization/`
+- **Veritas templates**: `templates/veritas/`
 
 ## Deletion
 
