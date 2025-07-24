@@ -15,6 +15,7 @@ stringData:
     - tmux
     - vim
     - libpq
+    - fio
     users: 
     - name: root
       ssh_authorized_keys:
@@ -31,7 +32,8 @@ stringData:
     - |
       #!/bin/bash
       set -x
-      # for now we skip this init entirely
+      # for now we skip this init entirely but here is a fio example
+      # fio --name=randrw --ioengine=libaio --direct=1 --rw=randrw --bs=4k --size=2G --numjobs=4 --runtime=120 --time_based --group_reporting 2>&1 | tee /root/fio.log
       exit 0
       MAX_RETRIES=5
       RETRY_INTERVAL=10  # seconds
