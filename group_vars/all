@@ -100,7 +100,7 @@ ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
 ibmentitlementkey: "{{ lookup('file', ibmentitlementkeyfile) }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
-power_ninety: false
+baremetal_env: false
 vmpass: "{{ lookup('file', '~/.vmpass' | expanduser) }}"
 dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 

@@ -1,4 +1,4 @@
-power_ninety: true
+baremetal_env: true
 ebs_volume_size: 300
 ocp_cluster_name: gpfs-demo
 ocp_worker_type: c5n.metal
