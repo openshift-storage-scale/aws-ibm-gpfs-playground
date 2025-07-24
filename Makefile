@@ -6,9 +6,9 @@ endif
 EXTRA_VARS ?=
 
 # When true we set the default to a BM instance for Power90
-POWER90 ?= false
-ifeq ($(POWER90), true)
-	EXTRA_ARGS = -e @./vars/power90.yaml -e @./overrides.yml 
+BAREMETAL ?= false
+ifeq ($(BAREMETAL), true)
+	EXTRA_ARGS = -e @./vars/baremetal.yaml -e @./overrides.yml 
 endif
 
 
@@ -31,8 +31,8 @@ install: ## Install an OCP cluster on AWS using the ibm-fusion-access operator a
 	-@notify.sh "AWS install finished"
 
 .PHONY: virt
-virt: ## Configures the virt bits (only for POWER90)
-	@if [ "$(POWER90)" = "false" ]; then echo "Error, virt is only for power90"; exit 1; fi
+virt: ## Configures the virt bits (only for BAREMETAL)
+	@if [ "$(BAREMETAL)" = "false" ]; then echo "Error, virt is only for baremetal environments"; exit 1; fi
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/virt.yml
 
 .PHONY: oadp

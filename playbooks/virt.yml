@@ -17,7 +17,7 @@
         export KUBECONFIG={{ kubeconfig }}
         oc get filesystems -A
 
-    - name: Template virt subscription files
+    - name: Template virt and mtc subscription files
       ansible.builtin.template:
         src: ../templates/{{ item }}
         dest: "{{ gpfsfolder }}/{{ item }}"
@@ -25,8 +25,9 @@
       loop:
         - virt-subscription.yaml
         - virt-hyperconverged.yaml
+        - mtc-subscription.yaml
 
-    - name: Apply virt subscription
+    - name: Apply virt and mtc subscription
       ansible.builtin.shell: |
         set -e
         export KUBECONFIG="{{ kubeconfig }}"
@@ -37,6 +38,7 @@
       delay: 10
       loop:
         - virt-subscription.yaml
+        - mtc-subscription.yaml
         - virt-hyperconverged.yaml
 
     - name: Download virtctl
