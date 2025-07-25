@@ -1,3 +1,6 @@
+# The json patch is needed to enable the storage live migration featuregate, see:
+# https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/migration_toolkit_for_containers/index#mtc-migrating-vms
+---
 apiVersion: hco.kubevirt.io/v1beta1
 kind: HyperConverged
 metadata:

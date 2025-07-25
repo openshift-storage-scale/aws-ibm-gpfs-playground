@@ -26,6 +26,8 @@
         - virt-subscription.yaml
         - virt-hyperconverged.yaml
         - mtc-subscription.yaml
+        - mtc-migcluster.yaml
+        - mtc-migcontroller.yaml
 
     - name: Apply virt and mtc subscription
       ansible.builtin.shell: |
@@ -35,10 +37,12 @@
       register: virt_apply
       until: virt_apply is not failed
       retries: 20
-      delay: 10
+      delay: 20
       loop:
         - virt-subscription.yaml
         - mtc-subscription.yaml
+        - mtc-migcluster.yaml
+        - mtc-migcontroller.yaml
         - virt-hyperconverged.yaml
 
     - name: Download virtctl
