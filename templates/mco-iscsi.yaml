@@ -1,0 +1,54 @@
+variant: openshift
+version: 4.18.0
+metadata:
+  name: 99-worker-iscsi
+  labels:
+    machineconfiguration.openshift.io/role: worker
+storage:
+  files:
+    - path: /usr/local/sbin/iscsi-login
+      mode: 0755
+      overwrite: true
+      contents:
+        inline: |
+          #!/bin/bash
+          iscsiadm -m discovery -t st -p {{ iscsi_target_primary_ip }}
+          iscsiadm -m node -T {{iscsi_target_iqn}} -p {{ iscsi_target_primary_ip }} -l
+systemd:
+  units:
+    - name: iscsid.service
+      enabled: true
+    - name: iscsi.service
+      enabled: true
+    - name: custom-coreos-generate-iscsi-initiatorname.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Custom CoreOS Generate iSCSI Initiator Name
+        Before=coreos-generate-iscsi-initiatorname.service
+        Before=iscsid.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/sh -c 'echo "InitiatorName=`hostname`" > /etc/iscsi/initiatorname.iscsi'
+        RemainAfterExit=yes
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: "iscsi-login-target.service"
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Logs into the iSCSI target if not already logged in
+        Before=kubelet.service
+        After=iscsi.service iscsid.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=no
+        User=root
+        ExecStart=/usr/local/sbin/iscsi-login
+        TimeoutSec=300
+
+        [Install]
+        WantedBy=multi-user.target
