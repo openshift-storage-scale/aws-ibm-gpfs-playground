@@ -7,8 +7,8 @@ spec:
     nodeSelector:
       scale.spectrum.ibm.com/daemon-selector: ""
   daemon:
-    bypassDiscovery: false
     nsdDevicesConfig:
+      bypassDiscovery: false
       localDevicePaths:
       - devicePath: /dev/disk/by-id/*
         deviceType: generic
