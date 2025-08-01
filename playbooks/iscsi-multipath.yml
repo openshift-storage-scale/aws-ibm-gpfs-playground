@@ -55,7 +55,7 @@
       register: subnet_info
 
     - name: Set private subnet id
-      ansible.builtin.set_fact: # only add the private subnet, and there will be only exactly one
+      ansible.builtin.set_fact:  # only add the private subnet, and there will be only exactly one
         private_subnet_id: "{{ subnet_info.subnets |  selectattr('map_public_ip_on_launch', '==', false) | map(attribute='subnet_id') | first }}"
 
     - name: Create ec2 security group
@@ -66,16 +66,16 @@
         description: sec group for iscsi target ec2
         vpc_id: "{{ sg_vpc_id }}"
         rules:
-        - proto: tcp
-          ports:
-            - 22
-          group_id: "{{ sg_group_id }}"
-          rule_desc: allow ssh from the ocp workers to debug
-        - proto: tcp
-          ports:
-            - 3260
-          group_id: "{{ sg_group_id }}"
-          rule_desc: allow iscsi for ocp worker nodes
+          - proto: tcp
+            ports:
+              - 22
+            group_id: "{{ sg_group_id }}"
+            rule_desc: allow ssh from the ocp workers to debug
+          - proto: tcp
+            ports:
+              - 3260
+            group_id: "{{ sg_group_id }}"
+            rule_desc: allow iscsi for ocp worker nodes
         tags:
           Owner: "{{ ocp_owner }}"
 
@@ -93,10 +93,10 @@
         network_interfaces:
           - assign_public_ip: false
             private_ip_addresses:
-            - primary: true
-              private_ip_address: "{{ iscsi_target_primary_ip }}"
-            - primary: false
-              private_ip_address: "{{ iscsi_target_secondary_ip }}"
+              - primary: true
+                private_ip_address: "{{ iscsi_target_primary_ip }}"
+              - primary: false
+                private_ip_address: "{{ iscsi_target_secondary_ip }}"
         image_id: "{{ iscsi_target_ami_image_id }}"
         tags:
           Owner: "{{ ocp_owner }}"
