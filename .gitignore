@@ -1,4 +1,5 @@
 overrides.yml
+playbooks/vm-def-task.yaml
 .ansible
 .venv
 .tmp
