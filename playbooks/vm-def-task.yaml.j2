@@ -1,0 +1,40 @@
+- name: Create and start EC2 instance
+  amazon.aws.ec2_instance:
+    profile: "{{ aws_profile }}"
+    region: "{{ ocp_region }}"
+    name: "{{ ocp_cluster_name }}-iscsi-target"
+    state: started
+    wait: true
+    vpc_subnet_id: "{{ private_subnet_id }}"
+    instance_type: "t2.micro"
+    key_name: "{{ iscsi_target_ssh_key_name }}"
+    security_group: "{{ ocp_cluster_name }}-iscsi-target-sg"
+    network_interfaces:
+      - assign_public_ip: false
+        private_ip_addresses:
+          - primary: true
+            private_ip_address: "{{ iscsi_target_primary_ip }}"
+          - primary: false
+            private_ip_address: "{{ iscsi_target_secondary_ip }}"
+    image_id: "{{ iscsi_target_ami_image_id }}"
+    tags:
+        Owner: "{{ ocp_owner }}"
+    volumes:
+{% for device in ["sdb", "sdc"] %}
+        - device_name: "/dev/{{ device }}"
+          ebs:
+            volume_size: "{{ iscsi_target_volume_size }}"
+            delete_on_termination: true
+{% endfor %}
+    user_data: |
+      #!/bin/bash
+      sudo dnf install targetcli -y
+      sudo systemctl start target
+      sudo systemctl enable target
+      sudo targetcli iscsi/ create {{ iscsi_target_iqn }}
+{% for device in ["xvdb", "xvdc"] %}
+      sudo targetcli backstores/block create name=LUN_{{ device }} dev=/dev/{{ device }}
+      sudo targetcli iscsi/{{ iscsi_target_iqn }}/tpg1/luns/ create /backstores/block/LUN_{{ device }}
+{% endfor %}
+      sudo targetcli iscsi/{{ iscsi_target_iqn }}/tpg1/ set attribute generate_node_acls=1  authentication=0 demo_mode_write_protect=0 cache_dynamic_acls=1
+      sudo targetcli saveconfig

@@ -1,0 +1,112 @@
+---
+- name: Playbook test
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+
+  tasks:
+    - name: Print AWS infos
+      tags:
+        - def
+      ansible.builtin.debug:
+        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
+
+    - name: Get AWS caller identity for Owner tag
+      tags:
+        - def
+      amazon.aws.aws_caller_info:
+        profile: "{{ aws_profile }}"
+      register: aws_caller_info
+
+    - name: Set OCP owner from AWS user
+      tags:
+        - def
+      ansible.builtin.set_fact:
+        ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
+
+    - name: Print Owner info
+      tags:
+        - def
+      ansible.builtin.debug:
+        msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"
+
+    - name: Create key pair to access ec2 with ssh
+      tags:
+        - def
+      amazon.aws.ec2_key:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: "{{ iscsi_target_ssh_key_name }}"
+        key_material: "{{ ssh_pubkey }}"
+
+    - name: Gather security group info for workers
+      tags:
+        - def
+      amazon.aws.ec2_security_group_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
+          "tag:Name": "{{ ocp_cluster_name }}-*"
+      register: sg_info
+
+    - name: Set vpc and sg id
+      tags:
+        - def
+      ansible.builtin.set_fact:
+        sg_vpc_id: "{{ sg_info.security_groups[0].vpc_id }}"
+        sg_group_id: "{{ sg_info.security_groups[0].group_id }}"
+
+    - name: Gather vpc info for workers
+      tags:
+        - def
+      amazon.aws.ec2_vpc_subnet_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          vpc-id: "{{ sg_vpc_id }}"
+      register: subnet_info
+
+    - name: Set private subnet id
+      tags:
+        - def
+      ansible.builtin.set_fact: # only add the private subnet, and there will be only exactly one
+        private_subnet_id: "{{ subnet_info.subnets |  selectattr('map_public_ip_on_launch', '==', false) | map(attribute='subnet_id') | first }}"
+
+    - name: Create ec2 security group
+      tags:
+        - def
+      amazon.aws.ec2_security_group:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: "{{ ocp_cluster_name }}-iscsi-target-sg"
+        description: sec group for iscsi target ec2
+        vpc_id: "{{ sg_vpc_id }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 22
+            group_id: "{{ sg_group_id }}"
+            rule_desc: allow ssh from the ocp workers to debug
+          - proto: tcp
+            ports:
+              - 3260
+            group_id: "{{ sg_group_id }}"
+            rule_desc: allow iscsi for ocp worker nodes
+        tags:
+          Owner: "{{ ocp_owner }}"
+
+    - name: Template VM definition task
+      tags:
+        - def
+      ansible.builtin.template:
+        src: vm-def-task.yaml.j2
+        dest: vm-def-task.yaml
+
+    - name: Create and start iSCSI target instance
+      tags:
+        - start
+      ansible.builtin.include_tasks: vm-def-task.yaml
