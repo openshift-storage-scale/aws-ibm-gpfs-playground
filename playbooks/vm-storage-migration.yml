@@ -1,0 +1,242 @@
+# ansible-lint: skip_file
+---
+- name: KubeVirt Live Volume Migration between Storage Classes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  vars:
+    vm_name: fio-test
+    vm_namespace: virt-test
+    volume_name: fio-test-volume
+    storage_class_a: ibm-test-sc
+    storage_class_b: ibm-test-sc2
+    migration_iterations: 5
+    wait_timeout: 300
+    kubevirt_namespace: openshift-cnv
+    migration_results: []
+
+  tasks:
+    - name: Print migration details
+      ansible.builtin.debug:
+        msg: |
+          Starting KubeVirt Live Volume Migration
+          VM: {{ vm_name }} in {{ vm_namespace }}
+          Storage Classes: {{ storage_class_a }} ⇄ {{ storage_class_b }}
+          Iterations: {{ migration_iterations }}
+
+    ##############################################
+    # PREREQUISITE VALIDATION
+    ##############################################
+    - name: Check if namespace exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: v1
+        kind: Namespace
+        name: "{{ vm_namespace }}"
+      register: ns_check
+
+    - name: Display namespace status
+      ansible.builtin.debug:
+        msg: "✅ Namespace {{ vm_namespace }} exists"
+      when: ns_check.resources | length > 0
+
+    - name: Fail if namespace missing
+      ansible.builtin.fail:
+        msg: "❌ Namespace {{ vm_namespace }} does not exist"
+      when: ns_check.resources | length == 0
+
+    - name: Check if VM exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: kubevirt.io/v1
+        kind: VirtualMachine
+        name: "{{ vm_name }}"
+        namespace: "{{ vm_namespace }}"
+      register: vm_check
+      failed_when: vm_check.resources | length == 0
+
+    - name: Verify VM is running
+      ansible.builtin.assert:
+        that:
+          - vm_check.resources[0].spec.runStrategy == "Always"
+        fail_msg: "VM must have runStrategy: Always for live migration"
+
+    - name: Check if VMI is running
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: kubevirt.io/v1
+        kind: VirtualMachineInstance
+        name: "{{ vm_name }}"
+        namespace: "{{ vm_namespace }}"
+      register: vmi_check
+
+    - name: Display VMI status
+      ansible.builtin.debug:
+        msg: |
+          ✅ VMI {{ vm_name }} is running
+          Phase: {{ vmi_check.resources[0].status.phase }}
+          Node: {{ vmi_check.resources[0].status.nodeName | default('unknown') }}
+      when:
+        - vmi_check.resources | length > 0
+        - vmi_check.resources[0].status.phase == "Running"
+
+    - name: Warn if VMI not running
+      ansible.builtin.debug:
+        msg: "⚠️  VMI {{ vm_name }} is not running (this is OK for testing, but required for actual migration)"
+      when:
+        - vmi_check.resources | length == 0 or
+          (vmi_check.resources | length > 0 and vmi_check.resources[0].status.phase != "Running")
+
+    - name: Check KubeVirt HyperConverged resource
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: hco.kubevirt.io/v1beta1
+        kind: HyperConverged
+        name: kubevirt-hyperconverged
+        namespace: "{{ kubevirt_namespace }}"
+      register: hco_check
+      failed_when: hco_check.resources | length == 0
+
+    - name: Verify Volume Migration feature gates are enabled
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get hyperconverged kubevirt-hyperconverged -n \
+        {{ kubevirt_namespace }} -o jsonpath='{.metadata.annotations.kubevirt\.kubevirt\.io/jsonpatch}'
+      register: feature_gates_check
+      changed_when: false
+      failed_when: >
+        'VolumesUpdateStrategy' not in feature_gates_check.stdout or
+        'VolumeMigration' not in feature_gates_check.stdout
+
+    - name: Verify workload update methods include LiveMigrate
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get hyperconverged kubevirt-hyperconverged -n \
+        {{ kubevirt_namespace }} -o jsonpath='{.spec.workloadUpdateStrategy.workloadUpdateMethods[*]}'
+      register: update_methods_check
+      changed_when: false
+      failed_when: "'LiveMigrate' not in update_methods_check.stdout"
+
+    - name: Check storage classes exist
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: storage.k8s.io/v1
+        kind: StorageClass
+        name: "{{ item }}"
+      register: sc_check
+      failed_when: sc_check.resources | length == 0
+      loop:
+        - "{{ storage_class_a }}"
+        - "{{ storage_class_b }}"
+
+    - name: Check live migration configuration
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get hyperconverged kubevirt-hyperconverged -n {{ kubevirt_namespace }} -o jsonpath='{.spec.liveMigrationConfig}'
+      register: live_migration_config
+      changed_when: false
+      failed_when: false
+
+    - name: Display live migration configuration
+      ansible.builtin.debug:
+        msg: |
+          ✅ Live Migration Configuration:
+          {{ live_migration_config.stdout | from_json if live_migration_config.stdout else 'Not configured' }}
+
+    - name: Get current VM volume configuration from DataVolumeTemplate
+      ansible.builtin.set_fact:
+        current_storage_class: "{{ vm_check.resources[0].spec.dataVolumeTemplates[0].spec.storage.storageClassName }}"
+        current_volume_size: "{{ vm_check.resources[0].spec.dataVolumeTemplates[0].spec.storage.resources.requests.storage }}"
+
+    - name: Display current VM state
+      ansible.builtin.debug:
+        msg: |
+          ✅ Prerequisites validated successfully!
+          Current VM Volume: {{ volume_name }}
+          Current Storage Class: {{ current_storage_class }}
+          Volume Size: {{ current_volume_size }}
+
+    ##############################################
+    # LIVE MIGRATION LOOP
+    ##############################################
+    - name: Initialize migration tracking
+      ansible.builtin.set_fact:
+        migration_start_time: "{{ lookup('pipe', 'date +%s') | int }}"
+        success_count: 0
+        failure_count: 0
+
+    # Note: FIO workload should be set up manually as a systemd service before running this migration playbook
+    # Use the provided setup-fio-manual.sh script to set up FIO
+
+    - name: Ensure migration run id
+      ansible.builtin.set_fact:
+        migration_run_id: "{{ migration_run_id | default(lookup('password', '/dev/null chars=ascii_lowercase,digits length=6')) }}"
+
+    - name: Run live volume migration iterations
+      block:
+        - name: Execute migration iteration
+          ansible.builtin.include_tasks: vm-storage-migration-loop.yml
+          loop: "{{ range(1, migration_iterations | int + 1) | list }}"
+          loop_control:
+            loop_var: iteration
+      rescue:
+        - name: Record failed migration
+          ansible.builtin.set_fact:
+            failure_count: "{{ failure_count | int + 1 }}"
+            migration_results: "{{ migration_results + [failed_result] }}"
+          vars:
+            failed_result:
+              iteration: "{{ iteration | default('unknown') }}"
+              source_sc: "{{ current_sc | default('unknown') }}"
+              target_sc: "{{ target_sc | default('unknown') }}"
+              duration: "{{ (lookup('pipe', 'date +%s') | int) - (iteration_start_time | default(0) | int) }}"
+              status: "failed"
+              error: "{{ ansible_failed_result.msg | default('Unknown error') }}"
+
+        - name: Display migration failure
+          ansible.builtin.debug:
+            msg: |
+              ❌ Migration {{ iteration | default('unknown') }} failed!
+              Error: {{ ansible_failed_result.msg | default('Unknown error') }}
+
+        - name: Stop on first failure as requested
+          ansible.builtin.fail:
+            msg: "Migration failed on iteration {{ iteration | default('unknown') }}. Stopping as requested."
+
+    ##############################################
+    # RESULTS SUMMARY
+    ##############################################
+    - name: Calculate total migration time
+      ansible.builtin.set_fact:
+        migration_end_time: "{{ lookup('pipe', 'date +%s') | int }}"
+        total_elapsed_time: "{{ lookup('pipe', 'date +%s') | int | int - migration_start_time | int }}"
+
+    - name: Generate CSV report
+      ansible.builtin.copy:
+        content: |
+          iteration,source_sc,target_sc,migration_duration,status
+          {% for result in migration_results %}
+          {{ result.iteration }},{{ result.source_sc }},{{ result.target_sc }},{{ result.duration }},{{ result.status }}
+          {% endfor %}
+        dest: "/tmp/vm-migration-report-{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}.csv"
+      when: migration_results | length > 0
+
+    - name: Display final results
+      ansible.builtin.debug:
+        msg: |
+          🎯 Live Volume Migration Complete!
+          Total Iterations: {{ migration_iterations }}
+          Successful Migrations: {{ success_count }}
+          Failed Migrations: {{ failure_count }}
+          Total Time: {{ total_elapsed_time }} seconds
+          Average Time per Migration: {{ ((total_elapsed_time | int) / (migration_iterations | int)) | round(2) }} seconds
+          Report saved to: /tmp/vm-migration-report-*.csv
+
+    - name: Fail if any migrations failed
+      ansible.builtin.fail:
+        msg: "{{ failure_count }} migration(s) failed out of {{ migration_iterations }} total"
+      when: failure_count > 0
