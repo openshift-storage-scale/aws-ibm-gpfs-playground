@@ -36,16 +36,21 @@ Change it by uncommenting and tweaking at least the following lines: use the val
    - `gpfs_volume_name`
    - `ocp_az`
    - `ocp_region`
-5. Make sure you read `group_vars/all` and have all the files with the secret material done
-6. Run `make ocp-clients`. This will download the needed oc + openshift-install version
-   in your home folder under `~/aws-gpfs-playground/<ocp_version>`
-   you might need to add the path to your bash PATH or copy to /usr/bin folder
+5. Make sure you read `group_vars/all` and have all the files with the secret material done.  
+   
+6. Run `make ocp-clients`. This will download the needed oc + openshift-install version  
+   in your home folder under `~/aws-gpfs-playground/<ocp_version>`  
+   you might need to add this path to your bash PATH or copy to /usr/bin folder  
+
 7. Run `make install` to install the openshift-fusion-access operator
-8. After the make install finish you can get the access information from the installation logs at
-~/aws-gpfs-playground/ocp_install_files/.openshift_install.log, after “Install complete!”
-KUBECONFIG - path to configuration file 
-OpenShift web-console - URL to OpenShift web console in AWS
-Login Credentials to OpenShift web console (user and password)
+   
+8. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
+~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
+
+Look for the section in the log after the "Install complete!" message. The log will contain the following key details:
+- Kubeconfig: The path to your configuration file.
+- OpenShift web-console: The URL for the OpenShift web console in AWS.
+- Login Credentials: The username and password to log in to the web console.
 
 
 
