@@ -48,7 +48,6 @@ EOF
 ```
 
 Change it by uncommenting and tweaking at least the following lines. 
-The values for ocp_region and ocp_az should match your existing AWS configuration.
    - `ocp_domain`
    - `ocp_cluster_name`
    - `gpfs_volume_name`
