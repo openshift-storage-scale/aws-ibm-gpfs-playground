@@ -10,9 +10,26 @@ EBS volume and attach it to the three workers.
  (httpd-tools on Fedora or `brew install httpd` on MacOSX)
 2. Make sure your aws credentials and aws cli are in place and working
 3. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
-Copy the token to ~/.pullsecret.json
-
-4. Run the following to create an `overrides.yml`. 
+4. Copy the token to ~/.pullsecret.json. The file should be in the following format:
+```
+{
+  "auths": {
+    "cloud.openshift.com": {
+      "auth": "YOUR_TOKEN_HERE",
+      "email": "you@example.com"
+    },
+    "quay.io": {
+      "auth": "YOUR_TOKEN_HERE",
+      "email": "you@example.com"
+    },
+    "registry.redhat.io": {
+      "auth": "YOUR_TOKEN_HERE",
+      "email": "you@example.com"
+    }
+  }
+}
+```
+5. Run the following to create an `overrides.yml`. 
 ```
 cat > overrides.yml<<EOF
 # ocp_domain: "fusionaccess.devcluster.openshift.com"
@@ -30,25 +47,25 @@ gpfs_volume_name: "bandini-volume"
 EOF
 ```
 
-Change it by uncommenting and tweaking at least the following lines: use the value set in the aws cert and aws config
+Change it by uncommenting and tweaking at least the following lines. 
+The values for ocp_region and ocp_az should match your existing AWS configuration.
    - `ocp_domain`
    - `ocp_cluster_name`
    - `gpfs_volume_name`
    - `ocp_az`
    - `ocp_region`
-5. Make sure you read `group_vars/all` and have all the files with the secret material done.  
-   
-6. Run `make ocp-clients`. This will download the needed oc + openshift-install version  
-   in your home folder under `~/aws-gpfs-playground/<ocp_version>`  
-   you might need to add this path to your bash PATH or copy to /usr/bin folder  
 
-7. Run `make install` to install the openshift-fusion-access operator
+6. Make sure you read `group_vars/all` and have all the files with the secret material done.  
    
-8. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
+7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
+
+8. Run `make install` to install the openshift-fusion-access operator
+   
+9. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
 ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
 
 Look for the section in the log after the "Install complete!" message. The log will contain the following key details:
-- Kubeconfig: The path to your configuration file.
+- KUBECONFIG File Path: The path for the Kube Config file.
 - OpenShift web-console: The URL for the OpenShift web console in AWS.
 - Login Credentials: The username and password to log in to the web console.
 
