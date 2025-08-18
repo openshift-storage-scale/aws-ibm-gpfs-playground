@@ -9,7 +9,10 @@ EBS volume and attach it to the three workers.
 1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml` and also that you have the httpd tools installed
  (httpd-tools on Fedora or `brew install httpd` on MacOSX)
 2. Make sure your aws credentials and aws cli are in place and working
-3. Run the following to create an `overrides.yml`. 
+3. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
+Copy the token to ~/.pullsecret.json
+
+4. Run the following to create an `overrides.yml`. 
 ```
 cat > overrides.yml<<EOF
 # ocp_domain: "fusionaccess.devcluster.openshift.com"
@@ -27,16 +30,23 @@ gpfs_volume_name: "bandini-volume"
 EOF
 ```
 
-Change it by uncommenting and tweaking at least the following lines:
+Change it by uncommenting and tweaking at least the following lines: use the value set in the aws cert and aws config
    - `ocp_domain`
    - `ocp_cluster_name`
    - `gpfs_volume_name`
    - `ocp_az`
    - `ocp_region`
-4. Make sure you read `group_vars/all` and have all the files with the secret material done
-5. Run `make ocp-clients`. This will download the needed oc + openshift-install version
+5. Make sure you read `group_vars/all` and have all the files with the secret material done
+6. Run `make ocp-clients`. This will download the needed oc + openshift-install version
    in your home folder under `~/aws-gpfs-playground/<ocp_version>`
-6. Run `make install` to install the openshift-fusion-access operator
+   you might need to add the path to your bash PATH or copy to /usr/bin folder
+7. Run `make install` to install the openshift-fusion-access operator
+8. After the make install finish you can get the access information from the installation logs at
+~/aws-gpfs-playground/ocp_install_files/.openshift_install.log, after “Install complete!”
+KUBECONFIG - path to configuration file 
+OpenShift web-console - URL to OpenShift web console in AWS
+Login Credentials to OpenShift web console (user and password)
+
 
 
 ## Deletion
@@ -49,4 +59,4 @@ Run `make gpfs-health` to run some GPFS healthcheck commands
 
 ## Delete GPFS objects
 
-Run `make gpfs-clean` to remove all the gpfs objects we know about
+Run `make gpfs-cleanup` to remove all the gpfs objects we know about
