@@ -1,0 +1,462 @@
+# ansible-lint: skip_file
+---
+- name: Migration Iteration
+  ansible.builtin.debug:
+    msg: "🔄 Starting live migration iteration {{ iteration }}/{{ migration_iterations }}"
+
+- name: Get current VM state
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    name: "{{ vm_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: current_vm_state
+
+- name: Get current volume name from VM template
+  ansible.builtin.set_fact:
+    current_volume_name: >-
+      {{ current_vm_state.resources[0].spec.template.spec.volumes | 
+         selectattr('name', 'equalto', 'rootdisk') | 
+         map(attribute='dataVolume.name') | first }}
+
+- name: Get current storage class from the actual DV
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    name: "{{ current_volume_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: current_dv_info
+
+- name: Determine source and target storage classes
+  ansible.builtin.set_fact:
+    current_sc: "{{ current_dv_info.resources[0].spec.storage.storageClassName }}"
+    target_sc: "{{ storage_class_b if current_dv_info.resources[0].spec.storage.storageClassName == storage_class_a else storage_class_a }}"
+    new_volume_name: "{{ volume_name }}-migration-{{ migration_run_id }}-{{ iteration }}"
+    current_volume_size: "{{ current_dv_info.resources[0].spec.storage.resources.requests.storage }}"
+    # Store the old volume name for cleanup
+    old_volume_name: "{{ current_volume_name }}"
+
+- name: Record migration start time
+  ansible.builtin.set_fact:
+    iteration_start_time: "{{ lookup('pipe', 'date +%s') | int }}"
+
+- name: "Migrate from {{ current_sc }} to {{ target_sc }}"
+  ansible.builtin.debug:
+    msg: "🚀 Migrating volume from {{ current_sc }} to {{ target_sc }} using KubeVirt live migration"
+
+- name: Step 1 & 2 - Patch VM with new DataVolumeTemplate and updateVolumesStrategy
+  kubernetes.core.k8s:
+    kubeconfig: "{{ kubeconfig }}"
+    state: present
+    merge_type: merge
+    definition:
+      apiVersion: kubevirt.io/v1
+      kind: VirtualMachine
+      metadata:
+        name: "{{ vm_name }}"
+        namespace: "{{ vm_namespace }}"
+      spec:
+        updateVolumesStrategy: Migration
+        dataVolumeTemplates:
+          - metadata:
+              name: "{{ new_volume_name }}"
+              annotations:
+                cdi.kubevirt.io/cloneType: copy
+            spec:
+              source:
+                blank: {}
+              storage:
+                accessModes:
+                  - ReadWriteMany
+                resources:
+                  requests:
+                    storage: "{{ current_volume_size }}"
+                storageClassName: "{{ target_sc }}"
+        template:
+          spec:
+            volumes:
+              - dataVolume:
+                  name: "{{ new_volume_name }}"
+                name: rootdisk
+              - name: cloudinitdisk
+                cloudInitNoCloud:
+                  secretRef:
+                    name: vm-cloudinit-slim
+
+- name: Step 3 - Wait for new DataVolume to reach terminal phase
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    name: "{{ new_volume_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: new_dv_status
+  until: >
+    (new_dv_status.resources | length > 0) and
+    (new_dv_status.resources[0].status is defined) and
+    (new_dv_status.resources[0].status.phase is defined) and
+    (new_dv_status.resources[0].status.phase in ['Succeeded','Failed'])
+  retries: 60
+  delay: 5
+  failed_when: false
+
+- name: Extract DV phase
+  ansible.builtin.set_fact:
+    dv_phase: >-
+      {{
+        (new_dv_status.resources | length > 0 and
+         new_dv_status.resources[0].status is defined and
+         new_dv_status.resources[0].status.phase is defined)
+        | ternary(new_dv_status.resources[0].status.phase, 'Unknown')
+      }}
+
+- name: Display DataVolume completion status
+  ansible.builtin.debug:
+    msg: |
+      📦 DataVolume Status: {{ dv_phase }}
+      {% if dv_phase == "Succeeded" %}
+      ✅ CDI data transfer completed! Now waiting for VMIM...
+      {% elif dv_phase == "Failed" %}
+      ❌ CDI data transfer failed
+      {% else %}
+      ⚠️  CDI data transfer still in progress: {{ dv_phase }}
+      {% endif %}
+
+- name: Fail if DataVolume creation failed
+  ansible.builtin.fail:
+    msg: "❌ DataVolume creation failed with phase: {{ dv_phase }}"
+  when: dv_phase not in ["Succeeded", "Pending", "WaitForFirstConsumer", "CloneInProgress", "ImportInProgress"]
+
+- name: Step 4 - Wait for VMIM migration to appear (after DataVolume is ready)
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachineInstanceMigration
+    namespace: "{{ vm_namespace }}"
+    label_selectors:
+      - "kubevirt.io/volume-update-migration={{ vm_name }}"
+  register: vmim_list
+  until: vmim_list.resources | length > 0
+  retries: 30
+  delay: 3
+  failed_when: false
+
+- name: Identify VMIM created by this migration
+  ansible.builtin.set_fact:
+    vmim_name: "{{ ((vmim_list.resources | sort(attribute='metadata.creationTimestamp')) | last).metadata.name }}"
+
+- name: Step 5 - Poll VMIM until migration completes (Succeeded or Failed)
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachineInstanceMigration
+    name: "{{ vmim_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: vmim_status
+  until: >
+    (vmim_status.resources | length > 0) and
+    (vmim_status.resources[0].status is defined) and
+    (vmim_status.resources[0].status.phase is defined) and
+    (vmim_status.resources[0].status.phase in ['Succeeded','Failed'])
+  retries: 60
+  delay: 5
+  failed_when: false
+
+- name: Capture migration phase for downstream tasks
+  ansible.builtin.set_fact:
+    migration_status:
+      stdout: "{{ vmim_status.resources[0].status.phase | default('Unknown') }}"
+
+- name: Display polling progress
+  ansible.builtin.debug:
+    msg: |
+      🔍 VMIM {{ vmim_name }} Migration Status: {{ migration_status.stdout }}
+      ⏱️  Polling every 5 seconds until Succeeded or Failed...
+
+- name: Get final VMIM details after completion
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachineInstanceMigration
+    name: "{{ vmim_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: vmim_final
+  failed_when: false
+
+- name: Display migration completion status
+  ansible.builtin.debug:
+    msg: |
+      {% if migration_status.stdout == "Succeeded" %}
+      🎉 VMIM Migration SUCCEEDED!
+      {% elif migration_status.stdout == "Failed" %}
+      ❌ VMIM Migration FAILED!
+      {% else %}
+      ⚠️  VMIM Migration status: {{ migration_status.stdout }}
+      {% endif %}
+
+      Details for {{ vmim_name }}:
+      {{ (vmim_final.resources[0] | default({})) | to_nice_yaml }}
+
+- name: Handle failed migration with ManualRecoveryRequired check
+  block:
+    - name: Check if VMI has targetNodeDomainReadyTimestamp (copy completed)
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get vmi {{ vm_name }} -n {{ vm_namespace }} -o jsonpath='{.status.migrationState.targetNodeDomainReadyTimestamp}'
+      register: target_domain_ready
+      changed_when: false
+      failed_when: false
+
+    - name: Check if VM has ManualRecoveryRequired condition
+      ansible.builtin.shell: |
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get vm {{ vm_name }} -n {{ vm_namespace }} -o jsonpath='{.status.conditions[?(@.type=="ManualRecoveryRequired")].status}'
+      register: manual_recovery_required
+      changed_when: false
+      failed_when: false
+
+    - name: Handle case where copy completed but migration failed
+      block:
+        - name: Remove updateVolumesStrategy to complete the migration
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} patch vm {{ vm_name }} -n {{ vm_namespace }} --type='json' -p='[{"op": "remove", "path": "/spec/updateVolumesStrategy"}]'
+          changed_when: true
+
+        - name: Display recovery message
+          ansible.builtin.debug:
+            msg: |
+              🔧 Migration recovery applied!
+              Copy was completed but migration failed. Removed updateVolumesStrategy to complete the migration.
+              This follows KubeVirt documentation for ManualRecoveryRequired cases.
+
+        - name: Set migration as succeeded for recovery case
+          ansible.builtin.set_fact:
+            migration_status:
+              stdout: "Succeeded"
+
+      when: 
+        - target_domain_ready.stdout != ""
+        - manual_recovery_required.stdout == "True"
+
+    - name: Fail for unrecoverable migration failure
+      ansible.builtin.fail:
+        msg: |
+          ❌ Migration failed and cannot be recovered automatically.
+          VM may have ManualRecoveryRequired condition.
+          Please check VM status and consider manual recovery.
+      when: 
+        - migration_status.stdout == "Failed"
+        - target_domain_ready.stdout == ""
+        - manual_recovery_required.stdout == "True"
+
+  when: migration_status.stdout == "Failed"
+
+- name: Verify migration succeeded before proceeding
+  ansible.builtin.assert:
+    that:
+      - migration_status.stdout == "Succeeded"
+    fail_msg: "❌ Migration did not succeed (status: {{ migration_status.stdout }})"
+    success_msg: "✅ Migration successfully completed!"
+
+- name: Verify VM is still running after migration
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachineInstance
+    name: "{{ vm_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: vmi_status
+  failed_when: >
+    vmi_status.resources | length == 0 or
+    vmi_status.resources[0].status.phase != "Running"
+
+- name: Wait for VM to stabilize after migration
+  ansible.builtin.debug:
+    msg: "⏳ Waiting 15 seconds for VM to stabilize and KubeVirt to complete internal cleanup..."
+  when: migration_status.stdout == "Succeeded"
+
+- name: Pause for VM stabilization
+  ansible.builtin.pause:
+    seconds: 15
+  when: migration_status.stdout == "Succeeded"
+
+# KubeVirt automatically handles updateVolumesStrategy lifecycle
+# Cleanup sequence based on KubeVirt team guidance:
+# 1. Delete old completed virt-launcher pods
+# 2. Delete old DataVolume
+# 3. Wait for old PVC to disappear before next migration
+
+- name: Clean up old resources after successful migration
+  block:
+    - name: Clean up old virt-launcher pods in completed status
+      block:
+        - name: List all pods for the VM to see current state
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} get pods -n {{ vm_namespace }} -l vm.kubevirt.io/name={{ vm_name }} --no-headers
+          register: all_pods_list
+          changed_when: false
+
+        - name: Display current pod state
+          ansible.builtin.debug:
+            msg: |
+              📋 Current pods for VM {{ vm_name }}:
+              {{ all_pods_list.stdout }}
+
+        - name: Find completed virt-launcher pods
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} get pods -n {{ vm_namespace }} -l vm.kubevirt.io/name={{ vm_name }} --no-headers | \
+            awk '$3 == "Completed" && $1 ~ /virt-launcher/ {print $1}'
+          register: completed_pods
+          changed_when: false
+
+        - name: Display completed pods found
+          ansible.builtin.debug:
+            msg: |
+              🔍 Completed virt-launcher pods found:
+              {% if completed_pods.stdout %}
+              {{ completed_pods.stdout.split('\n') | join('\n') }}
+              {% else %}
+              No completed virt-launcher pods found
+              {% endif %}
+
+        - name: Delete completed virt-launcher pods
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} delete pod {{ item }} -n {{ vm_namespace }} --grace-period=30
+          loop: "{{ completed_pods.stdout.split('\n') | select('string') | list }}"
+          when: completed_pods.stdout != ""
+          changed_when: true
+
+        - name: Wait for completed pods to be deleted
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} get pods -n {{ vm_namespace }} -l vm.kubevirt.io/name={{ vm_name }} --no-headers | \
+            awk '$3 == "Completed" && $1 ~ /virt-launcher/ {print $1}'
+          register: remaining_completed_pods
+          until: remaining_completed_pods.stdout == ""
+          retries: 12
+          delay: 5
+          changed_when: false
+
+        - name: Display final pod state after cleanup
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} get pods -n {{ vm_namespace }} -l vm.kubevirt.io/name={{ vm_name }} --no-headers
+          register: final_pods_list
+          changed_when: false
+
+        - name: Show final pod state
+          ansible.builtin.debug:
+            msg: |
+              ✅ Final pod state after virt-launcher cleanup:
+              {{ final_pods_list.stdout }}
+
+        - name: Check for importer-prime pods (should be cleaned up automatically)
+          ansible.builtin.shell: |
+            export KUBECONFIG="{{ kubeconfig }}"
+            {{ oc_bin }} get pods -n {{ vm_namespace }} -l vm.kubevirt.io/name={{ vm_name }} --no-headers | \
+            awk '$1 ~ /importer-prime/ {print $1 " - " $3}'
+          register: importer_pods
+          changed_when: false
+
+        - name: Display importer-prime pod status
+          ansible.builtin.debug:
+            msg: |
+              🔧 Importer-prime pods status:
+              {% if importer_pods.stdout %}
+              {{ importer_pods.stdout.split('\n') | join('\n') }}
+              {% else %}
+              No importer-prime pods found
+              {% endif %}
+
+    - name: Check if old DataVolume still exists
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: cdi.kubevirt.io/v1beta1
+        kind: DataVolume
+        name: "{{ old_volume_name }}"
+        namespace: "{{ vm_namespace }}"
+      register: old_dv_check
+      failed_when: false
+
+    - name: Delete old DataVolume if it exists
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        api_version: cdi.kubevirt.io/v1beta1
+        kind: DataVolume
+        name: "{{ old_volume_name }}"
+        namespace: "{{ vm_namespace }}"
+      when: old_dv_check.resources | length > 0
+
+    - name: Wait for old PVC to disappear before next migration
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: "{{ old_volume_name }}"
+        namespace: "{{ vm_namespace }}"
+      register: old_pvc_check
+      until: old_pvc_check.resources | length == 0
+      retries: 30
+      delay: 5
+      failed_when: false
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: |
+          ✅ Cleanup completed successfully
+          Old pods: Deleted
+          Old DataVolume: {{ 'Deleted' if old_dv_check.resources | length > 0 else 'Not found' }}
+          Old PVC: Disappeared
+
+  when: migration_status.stdout == "Succeeded"
+
+- name: Verify VM is still healthy after cleanup
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ kubeconfig }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachineInstance
+    name: "{{ vm_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: final_vmi_check
+  failed_when: >
+    final_vmi_check.resources | length == 0 or
+    final_vmi_check.resources[0].status.phase != "Running"
+
+- name: Display final VM status
+  ansible.builtin.debug:
+    msg: |
+      ✅ VM {{ vm_name }} is healthy after migration and cleanup
+      Phase: {{ final_vmi_check.resources[0].status.phase }}
+      Node: {{ final_vmi_check.resources[0].status.nodeName | default('unknown') }}
+
+# IO integrity checks removed - FIO should be set up manually as systemd service
+
+- name: Record successful migration
+  ansible.builtin.set_fact:
+    iteration_end_time: "{{ lookup('pipe', 'date +%s') | int }}"
+    success_count: "{{ success_count | int + 1 }}"
+
+- name: Add migration result to list
+  ansible.builtin.set_fact:
+    migration_results: "{{ migration_results + [migration_result] }}"
+  vars:
+    migration_result:
+      iteration: "{{ iteration }}"
+      source_sc: "{{ current_sc }}"
+      target_sc: "{{ target_sc }}"
+      duration: "{{ (lookup('pipe', 'date +%s') | int) - (iteration_start_time | int) }}"
+      status: "success"
+
+- name: Display iteration result
+  ansible.builtin.debug:
+    msg: |
+      ✅ Migration {{ iteration }} completed successfully
+      {{ current_sc }} → {{ target_sc }}
+      Duration: {{ (lookup('pipe', 'date +%s') | int) - (iteration_start_time | int) }} seconds

@@ -1,0 +1,66 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: fio-test
+  namespace: virt-test
+  labels:
+    app: fio-test
+spec:
+  dataVolumeTemplates:
+    - metadata:
+        name: fio-test-volume
+        # Works around OCPNAS-60 for now
+        annotations:
+          cdi.kubevirt.io/cloneType: copy
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: centos-stream10
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: 30Gi
+          storageClassName: ibm-test-sc
+  instancetype:
+    kind: virtualmachineclusterinstancetype
+    name: u1.2xlarge
+  preference:
+    kind: virtualmachineclusterpreference
+    name: centos.stream10
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        network.kubevirt.io/headlessService: headless
+        app: fio-test
+    spec:
+      accessCredentials:
+        - sshPublicKey:
+            propagationMethod:
+              noCloud: {}
+            source:
+              secret:
+                secretName: vm-ssh
+      architecture: amd64
+      domain:
+        devices:
+          autoattachPodInterface: false
+          interfaces:
+            - masquerade: {}
+              name: default
+        machine:
+          type: pc-q35-rhel9.4.0
+        resources: {}
+      networks:
+        - name: default
+          pod: {}
+      subdomain: headless
+      volumes:
+        - dataVolume:
+            name: fio-test-volume
+          name: rootdisk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            secretRef:
+              name: vm-cloudinit-slim
