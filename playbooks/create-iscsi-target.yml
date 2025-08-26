@@ -105,6 +105,7 @@
       ansible.builtin.template:
         src: vm-def-task.yaml.j2
         dest: vm-def-task.yaml
+        mode: '0644'
 
     - name: Create and start iSCSI target instance
       tags:

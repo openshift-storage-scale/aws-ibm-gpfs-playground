@@ -73,8 +73,9 @@
       tags:
         - 1_ocp_install
       ansible.builtin.template:
-        src: ../templates/full-cluster-install-config.j2.yaml
+        src: "{{ playbook_dir }}/../templates/full-cluster-install-config.j2.yaml"
         dest: "{{ ocpfolder }}/install-config.yaml"
+        mode: '0644'
       when: not metadata_json_file.stat.exists
 
     - name: Install ocp cluster
@@ -141,8 +142,9 @@
       tags:
         - 1_ocp_install_mco
       ansible.builtin.template:
-        src: ../templates/mco.yaml
+        src: "{{ playbook_dir }}/../templates/mco.yaml"
         dest: "{{ gpfsfolder }}/mco.yaml"
+        mode: '0644'
 
     - name: Template mco file
       tags:
