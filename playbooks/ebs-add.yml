@@ -100,11 +100,11 @@
       ansible.builtin.fail:
         msg: "Cannot attach a single-attach volume to multiple instances. Set multi_attach: true or provide only one instance ID."
       when: not multi_attach and (instance_ids | length > 1)
-    
+
     - name: Set owner fact from the first worker's tag
       ansible.builtin.set_fact:
         owner_tag: "{{ ec2_instances.instances[0].tags.Owner | default('unknown') }}"
-    
+
     - name: Debug Owner tag
       ansible.builtin.debug:
         msg: "Will use the following owner tag: {{ owner_tag }}"

@@ -39,10 +39,6 @@
       ansible.builtin.debug:
         msg: "Volume details: {{ volume_details }}"
 
-    # - name: END
-    #   ansible.builtin.fail:
-    #     msg: "Dead end"
-
     - name: Detach EBS volume from each attached instance
       ansible.builtin.shell:
         cmd: >
@@ -51,6 +47,7 @@
           --instance-id "{{ item.instance_id }}"
           --region "{{ ocp_region }}"
           --profile "{{ aws_profile }}"
+        creates: nothing__just_used_to_force_run
       loop: "{{ volume_details.attachment_set }}"
       loop_control:
         label: "Detaching {{ volume_id }} from {{ item.instance_id }}"
@@ -77,8 +74,10 @@
         id: "{{ volume_id }}"
         state: absent
       register: delete_result
+      notify:
+        - Confirm deletion
 
+  handlers:
     - name: Confirm deletion
       ansible.builtin.debug:
         msg: "Volume {{ volume_id }} has been deleted."
-      when: delete_result.changed
