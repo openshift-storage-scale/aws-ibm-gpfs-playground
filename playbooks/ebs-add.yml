@@ -1,0 +1,149 @@
+---
+- name: Playbook to create and attach an EBS volume
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../overrides.yml
+  vars:
+    # --- Required variables ---
+    # A list of EC2 instance IDs to attach the volume to.
+    # Example:
+    # instance_ids:
+    #   - "i-0123456789abcdef0"
+    #   - "i-fedcba9876543210f"
+    instance_ids: []
+
+    # A filter to find EC2 instances. Will be used if instance_ids is empty.
+    # Example:
+    # instance_filter:
+    #   "tag:Name": "my-cluster-name*worker*"
+    #   "instance-state-name": "running"
+    instance_filter:
+      "tag:Name": "{{ ocp_cluster_name }}*worker*"
+      "instance-state-name": "running"
+
+    # --- Volume configuration ---
+    volume_name_tag: "gpfs-dedicated-ebs-volume"
+    volume_size: 150 # in GiB
+    volume_type: "io2"
+    multi_attach: true
+    iops: 5000 # For gp3, io1, io2. Omitted if not set.
+    throughput: "{{ undef() }}" # E.g.: 125. The value is in MiB/s. For gp3 ONLY!. Omitted by default unless it's overriden in overides.yml.
+    # The AZ for the volume. For single-attach volumes, this must match the instance's AZ.
+    availability_zone: "{{ ocp_az | default(ocp_region + 'a') }}"
+
+    # List of potential device names to use for attachments. The playbook will pick the first unused one.
+    potential_device_names:
+      - /dev/sdf
+      - /dev/sdg
+      - /dev/sdh
+      - /dev/sdi
+      - /dev/sdj
+
+  tasks:
+    - name: Fail if no instances are specified
+      ansible.builtin.fail:
+        msg: "You must provide either 'instance_ids' or 'instance_filter'."
+      when: (instance_ids | length == 0) and (instance_filter | length == 0)
+
+    - name: Find EC2 Instances if filter is provided
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters: "{{ instance_filter }}"
+      register: ec2_instances_from_filter
+      when: instance_ids | length == 0
+
+    - name: Find EC2 Instances if IDs are provided
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        instance_ids: "{{ instance_ids }}"
+      register: ec2_instances_from_ids
+      when: instance_ids | length > 0
+
+    - name: Set ec2_instances fact
+      ansible.builtin.set_fact:
+        ec2_instances: "{{ ec2_instances_from_filter if (instance_ids | length == 0) else ec2_instances_from_ids }}"
+
+    - name: Fail if no instances were found
+      ansible.builtin.fail:
+        msg: "No instances found."
+      when: ec2_instances.instances | length == 0
+
+    - name: Get used device names from the first instance
+      ansible.builtin.set_fact:
+        used_device_names: "{{ ec2_instances.instances[0].block_device_mappings | map(attribute='device_name') | list }}"
+
+    - name: Determine available device names
+      ansible.builtin.set_fact:
+        available_device_names: "{{ potential_device_names | difference(used_device_names) }}"
+
+    - name: Fail if no available device name is found
+      ansible.builtin.fail:
+        msg: |
+          Could not find an available device name. All potential names are in use: {{ used_device_names }}.
+          You can either extend the 'potential_device_names' list in 'overrides.yml' or remove an existing volume using the 'ebs-remove.yml' playbook.
+      when: available_device_names | length == 0
+
+    - name: Select the next available device name
+      ansible.builtin.set_fact:
+        device_name: "{{ available_device_names | first }}"
+
+    - name: Debug the chosen device name
+      ansible.builtin.debug:
+        msg: "Automatically selected device name: {{ device_name }}"
+
+    - name: Fail if trying to attach a single-attach volume to multiple instances
+      ansible.builtin.fail:
+        msg: "Cannot attach a single-attach volume to multiple instances. Set multi_attach: true or provide only one instance ID."
+      when: not multi_attach and (instance_ids | length > 1)
+    
+    - name: Set owner fact from the first worker's tag
+      ansible.builtin.set_fact:
+        owner_tag: "{{ ec2_instances.instances[0].tags.Owner | default('unknown') }}"
+    
+    - name: Debug Owner tag
+      ansible.builtin.debug:
+        msg: "Will use the following owner tag: {{ owner_tag }}"
+
+    - name: Set instance IDs from filter results
+      ansible.builtin.set_fact:
+        instance_ids: "{{ ec2_instances.instances | map(attribute='instance_id') | list }}"
+      when: instance_ids | length == 0
+
+    - name: Debug instance IDs
+      ansible.builtin.debug:
+        msg: "Will attach a new volume to the following instances: {{ instance_ids }}"
+
+    - name: Create EBS volume
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        availability_zone: "{{ availability_zone }}"
+        volume_size: "{{ volume_size }}"
+        volume_type: "{{ volume_type }}"
+        iops: "{{ iops | default(omit) }}"
+        throughput: "{{ throughput | default(omit) }}"
+        multi_attach: "{{ multi_attach }}"
+        tags:
+          Name: "{{ volume_name_tag }}"
+          Owner: "{{ owner_tag }}"
+      register: ebs_volume
+      failed_when: ebs_volume.volume_id is not defined
+
+    - name: Debug created volume
+      ansible.builtin.debug:
+        msg: "Created volume {{ ebs_volume.volume_id }}"
+
+    - name: Attach EBS volume to instances
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        instance: "{{ item }}"
+        id: "{{ ebs_volume.volume_id }}"
+        device_name: "{{ device_name }}"
+        state: present
+      loop: "{{ instance_ids }}"
