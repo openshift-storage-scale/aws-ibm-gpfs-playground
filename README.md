@@ -36,7 +36,7 @@ EBS volume and attach it to the three workers.
 ```
 cat << EOF > overrides.yml
 # ocp_domain: "fusionaccess.devcluster.openshift.com"
-ocp_cluster_name: "gpfs-<yout-user-name>"
+ocp_cluster_name: "gpfs-<your-user-name>"
 gpfs_volume_name: "<your-user-name>-volume"
 # ocp_worker_count: 3
 # ocp_worker_type: "m5.2xlarge"
