@@ -39,3 +39,6 @@ platform:
 pullSecret: '{{ pullsecret | regex_replace('\'', '"') }}'
 sshKey: |
   {{ ssh_pubkey | regex_replace('"', '') }}
+spec:
+  audit:
+    profile: {{ ocp_audit_profile }}

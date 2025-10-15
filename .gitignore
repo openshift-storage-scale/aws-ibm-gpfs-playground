@@ -1,7 +1,9 @@
+infra
 overrides.yml
+reports/
 .ansible
 .venv
 .tmp
-infra
 .vscode/
 .envrc
+.cursorindexingignore
