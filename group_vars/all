@@ -48,6 +48,7 @@ ocp_master_type: "m5.2xlarge"
 ocp_az: "eu-central-1a"
 ocp_region: "eu-central-1"
 ocp_arch: "amd64"
+ocp_audit_profile: Default
 
 aws_profile: "default"
 ebs_volume_size: 150
