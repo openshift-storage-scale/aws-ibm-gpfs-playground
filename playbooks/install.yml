@@ -80,15 +80,53 @@
     - name: Install ocp cluster
       tags:
         - 1_ocp_install
-      ansible.builtin.shell: |
-        set -ex
-        id
-        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
-      args:
-        chdir: "{{ ocpfolder }}"
-      environment:
-        AWS_PROFILE: "{{ aws_profile }}"
       when: not metadata_json_file.stat.exists
+      block:
+        - name: Run openshift-install
+          ansible.builtin.shell: |
+            set -ex
+            id
+            {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. 2>&1 | tee {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
+          args:
+            chdir: "{{ ocpfolder }}"
+          environment:
+            AWS_PROFILE: "{{ aws_profile }}"
+          register: openshift_install_result
+      rescue:
+        - name: Display openshift-install error
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "ERROR: openshift-install failed!"
+              - "=========================================="
+              - "Last error from log:"
+          
+        - name: Show error from log file
+          ansible.builtin.shell: |
+            if [ -f {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log ]; then
+              grep -i "level=error" {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log | tail -5 || tail -20 {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
+            else
+              echo "Log file not found"
+            fi
+          register: error_log
+          ignore_errors: true
+
+        - name: Print error details
+          ansible.builtin.debug:
+            msg: "{{ error_log.stdout_lines }}"
+
+        - name: Provide helpful information
+          ansible.builtin.debug:
+            msg:
+              - "Full log available at: {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log"
+              - "Common issues:"
+              - "  - Cluster name must be lowercase (a-z, 0-9, -, .)"
+              - "  - Check AWS credentials and permissions"
+              - "  - Verify install-config.yaml is valid"
+
+        - name: Fail the playbook
+          ansible.builtin.fail:
+            msg: "openshift-install failed. See error details above."
 
     - name: Does cluster kubeconfig exist
       tags:

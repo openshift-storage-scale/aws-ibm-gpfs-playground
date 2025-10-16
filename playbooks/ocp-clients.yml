@@ -22,6 +22,26 @@
         state: directory
         recurse: true
 
+    - name: Check if oc client is already installed
+      ansible.builtin.stat:
+        path: "{{ basefolder }}/{{ ocp_version }}/oc"
+      register: oc_installed
+
+    - name: Check if kubectl client is already installed
+      ansible.builtin.stat:
+        path: "{{ basefolder }}/{{ ocp_version }}/kubectl"
+      register: kubectl_installed
+
+    - name: Check if openshift-install is already installed
+      ansible.builtin.stat:
+        path: "{{ basefolder }}/{{ ocp_version }}/openshift-install"
+      register: openshift_install_installed
+
+    - name: Check if butane is already installed
+      ansible.builtin.stat:
+        path: "{{ basefolder }}/{{ ocp_version }}/butane"
+      register: butane_installed
+
     - name: Set OC facts to download bits (Linux)
       ansible.builtin.set_fact:
         oc_client_url: "{{ openshift_mirror }}/multi/clients/{{ ocp_channel }}/{{ ocp_version }}/{{ cpu_arch }}/openshift-client-{{ os_group }}.tar.gz"
@@ -31,6 +51,29 @@
       ansible.builtin.debug:
         msg: "URL to be used: {{ oc_client_url }} - {{ oc_install_url }}"
 
+    - name: Print installation status
+      ansible.builtin.debug:
+        msg:
+          - "oc installed: {{ oc_installed.stat.exists }}"
+          - "kubectl installed: {{ kubectl_installed.stat.exists }}"
+          - "openshift-install installed: {{ openshift_install_installed.stat.exists }}"
+          - "butane installed: {{ butane_installed.stat.exists }}"
+
+    - name: Client already installed - skipping oc download
+      ansible.builtin.debug:
+        msg: "oc and kubectl are already installed at {{ basefolder }}/{{ ocp_version }}/, skipping download"
+      when: oc_installed.stat.exists and kubectl_installed.stat.exists
+
+    - name: Client already installed - skipping butane download
+      ansible.builtin.debug:
+        msg: "butane is already installed at {{ basefolder }}/{{ ocp_version }}/butane, skipping download"
+      when: butane_installed.stat.exists
+
+    - name: Client already installed - skipping openshift-install download
+      ansible.builtin.debug:
+        msg: "openshift-install is already installed at {{ basefolder }}/{{ ocp_version }}/openshift-install, skipping download"
+      when: openshift_install_installed.stat.exists
+
     - name: Download oc
       ansible.builtin.get_url:
         url: "{{ oc_client_url }}"
@@ -38,6 +81,7 @@
         mode: "0640"
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
+      when: not oc_installed.stat.exists or not kubectl_installed.stat.exists
 
     - name: Download butane 
       ansible.builtin.get_url:
@@ -46,6 +90,7 @@
         mode: "0755"
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
+      when: not butane_installed.stat.exists
 
     - name: Download openshift-install
       ansible.builtin.get_url:
@@ -54,18 +99,21 @@
         mode: "0640"
       environment:
         https_proxy: "{{ https_proxy | default('') }}"
+      when: not openshift_install_installed.stat.exists
 
     - name: Uncompress oc
       ansible.builtin.unarchive:
         src: "{{ basefolder }}/{{ ocp_version }}/openshift-client.tar.gz"
         dest: "{{ basefolder }}/{{ ocp_version }}"
         remote_src: true
+      when: not oc_installed.stat.exists or not kubectl_installed.stat.exists
 
     - name: Uncompress openshift-install
       ansible.builtin.unarchive:
         src: "{{ basefolder }}/{{ ocp_version }}/openshift-install.tar.gz"
         dest: "{{ basefolder }}/{{ ocp_version }}"
         remote_src: true
+      when: not openshift_install_installed.stat.exists
     
     - name: Find files to remove
       ansible.builtin.find:

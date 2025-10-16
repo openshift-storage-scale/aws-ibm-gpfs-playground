@@ -62,6 +62,11 @@ Change it by uncommenting and tweaking at least the following lines.
 7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
 
 8. Run `make install` to install the openshift-fusion-access operator
+   
+   > **⏱️ Execution Time:** The `make install` process takes approximately **40-45 minutes** to complete.  
+   > Based on historical runs, expect the cluster installation step alone to take around 40-44 minutes.  
+   > This is normal and includes provisioning AWS infrastructure, bootstrapping OpenShift, and configuring the cluster.
+
 9. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
    ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
 
