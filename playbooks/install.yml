@@ -80,15 +80,43 @@
     - name: Install ocp cluster
       tags:
         - 1_ocp_install
-      ansible.builtin.shell: |
-        set -ex
-        id
-        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. &> {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
-      args:
-        chdir: "{{ ocpfolder }}"
-      environment:
-        AWS_PROFILE: "{{ aws_profile }}"
       when: not metadata_json_file.stat.exists
+      block:
+        - name: Run openshift-install
+          ansible.builtin.shell: |
+            set -ex
+            id
+            {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. 2>&1 | tee {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
+          args:
+            chdir: "{{ ocpfolder }}"
+          environment:
+            AWS_PROFILE: "{{ aws_profile }}"
+          register: openshift_install_result
+      rescue:
+        - name: Display openshift-install error
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "ERROR: openshift-install failed!"
+              - "=========================================="
+              - "Last lines from openshift-install output:"
+
+        - name: Print error details (captured output)
+          ansible.builtin.debug:
+            msg: "{{ (openshift_install_result.stderr_lines | default([])) + (openshift_install_result.stdout_lines | default([])) | list | tail(20) }}"
+
+        - name: Provide helpful information
+          ansible.builtin.debug:
+            msg:
+              - "Full log available at: {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log"
+              - "Common issues:"
+              - "  - Cluster name must be lowercase (a-z, 0-9, -, .)"
+              - "  - Check AWS credentials and permissions"
+              - "  - Verify install-config.yaml is valid"
+
+        - name: Fail the playbook
+          ansible.builtin.fail:
+            msg: "openshift-install failed. See error details above."
 
     - name: Does cluster kubeconfig exist
       tags:
