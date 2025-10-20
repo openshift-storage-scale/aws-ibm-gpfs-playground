@@ -59,20 +59,16 @@
           - "openshift-install installed: {{ openshift_install_installed.stat.exists }}"
           - "butane installed: {{ butane_installed.stat.exists }}"
 
-    - name: Client already installed - skipping oc download
+    - name: Clients already installed - skipping downloads
       ansible.builtin.debug:
-        msg: "oc and kubectl are already installed at {{ basefolder }}/{{ ocp_version }}/, skipping download"
-      when: oc_installed.stat.exists and kubectl_installed.stat.exists
-
-    - name: Client already installed - skipping butane download
-      ansible.builtin.debug:
-        msg: "butane is already installed at {{ basefolder }}/{{ ocp_version }}/butane, skipping download"
-      when: butane_installed.stat.exists
-
-    - name: Client already installed - skipping openshift-install download
-      ansible.builtin.debug:
-        msg: "openshift-install is already installed at {{ basefolder }}/{{ ocp_version }}/openshift-install, skipping download"
-      when: openshift_install_installed.stat.exists
+        msg: "{{ item.msg }}"
+      loop:
+        - { msg: "oc and kubectl are already installed at {{ basefolder }}/{{ ocp_version }}/, skipping download", cond: "{{ oc_installed.stat.exists and kubectl_installed.stat.exists }}" }
+        - { msg: "butane is already installed at {{ basefolder }}/{{ ocp_version }}/butane, skipping download", cond: "{{ butane_installed.stat.exists }}" }
+        - { msg: "openshift-install is already installed at {{ basefolder }}/{{ ocp_version }}/openshift-install, skipping download", cond: "{{ openshift_install_installed.stat.exists }}" }
+      when: item.cond | bool
+      loop_control:
+        label: "{{ item.msg }}"
 
     - name: Download oc
       ansible.builtin.get_url:
