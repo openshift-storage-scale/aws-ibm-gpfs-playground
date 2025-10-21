@@ -4,3 +4,4 @@ overrides.yml
 .tmp
 infra
 .vscode/
+.envrc
