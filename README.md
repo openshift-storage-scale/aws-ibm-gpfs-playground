@@ -6,13 +6,37 @@ Here are the steps to deploy OCP + GPFS. These steps will create an OCP
 cluster with 3 master + 3 workers by default and then will create a multi-attach
 EBS volume and attach it to the three workers.
 
-1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml` and also that you have the httpd tools installed
-   (httpd-tools on Fedora or `brew install httpd` on MacOS)
-2. Make sure your aws credentials and aws cli are in place and working
-3. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
-4. Copy the token to ~/.pullsecret.json. The file should be in the following format:
+### Check your Python version
 
+Ensure at least `Python v3.13.x` installed.
+You can use [uv](https://docs.astral.sh/uv/guides/install-python/) to manage Python versions or use your distro's package manager.
+
+### Set up a virtualenv
+Execute from the project's root directory, either `uv venv` or `python -m venv .venv` and activate it with `source .venv/bin/activate`.
+
+### Install Python-related dependencies into the virtualenv.
+
+```sh
+pip install -r requirements.txt
 ```
+
+### Install Ansible-related dependencies used by the playbooks
+
+```sh
+ansible-galaxy collection install -r requirements.yml
+```
+
+### Install `httpd`
+
+This can be done through your distro's package manager, the package is called `httpd-tools` in Fedora, or use `brew install httpd` on MacOS.
+
+### Set up credentials
+
+1. Make sure your aws credentials and aws cli are in place and working (download the latest CLI tool if necessary).
+2. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
+3. Copy the token to ~/.pullsecret.json. The file should be in the following format:
+
+```json
 {
   "auths": {
     "cloud.openshift.com": {
@@ -31,9 +55,9 @@ EBS volume and attach it to the three workers.
 }
 ```
 
-5. Run the following to create an `overrides.yml`.
+4. Run the following to create a sample `overrides.yml` file.
 
-```
+```sh
 cat << EOF > overrides.yml
 # ocp_domain: "fusionaccess.devcluster.openshift.com"
 ocp_cluster_name: "gpfs-<your-user-name>"
@@ -50,31 +74,30 @@ gpfs_volume_name: "<your-user-name>-volume"
 EOF
 ```
 
-Change it by uncommenting and tweaking at least the following lines.
-
+Tweak it as necessary, you will need to uncomment at least one the following lines:
 - `ocp_domain`
 - `ocp_cluster_name`
 - `gpfs_volume_name`
 - `ocp_az`
 - `ocp_region`
 
-6. Make sure you read `group_vars/all` and have all the files with the secret material done.
-7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
+5. Make sure you read `group_vars/all` and have all the files with the secret material done.
+6. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
 
-8. Run `make install` to install the openshift-fusion-access operator
+7. Run `make install` to install the openshift-fusion-access operator
    
    > **⏱️ Execution Time:** The `make install` process takes approximately **40-45 minutes** to complete.  
    > Based on historical runs, expect the cluster installation step alone to take around 40-44 minutes.  
    > This is normal and includes provisioning AWS infrastructure, bootstrapping OpenShift, and configuring the cluster.
 
-9. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
+8. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
    ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
 
 Look for the section in the log after the "Install complete!" message. The log will contain the following key details:
 
-- KUBECONFIG File Path: The path for the Kube Config file.
-- OpenShift web-console: The URL for the OpenShift web console in AWS.
-- Login Credentials: The username and password to log in to the web console.
+- `KUBECONFIG` File Path: The path for the Kube Config file.
+- `OpenShift web-console URL`: The URL for the OpenShift web console in AWS.
+- `Credentials`: The `kubeadmin` password to log in to the web console.
 
 ## Tear down
 
