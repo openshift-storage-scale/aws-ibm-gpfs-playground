@@ -74,7 +74,7 @@ gpfs_volume_name: "<your-user-name>-volume"
 EOF
 ```
 
-Tweak it as necessary, you will need to uncomment at least one the following lines:
+Tweak it as necessary, you will need to uncomment at least one of the following lines:
 - `ocp_domain`
 - `ocp_cluster_name`
 - `gpfs_volume_name`
