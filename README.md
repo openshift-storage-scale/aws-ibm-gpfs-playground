@@ -8,7 +8,7 @@ EBS volume and attach it to the three workers.
 
 ### Check your Python version
 
-Ensure at least `Python v3.13.x` installed.
+Ensure at least `Python v3.13.x` is installed.
 You can use [uv](https://docs.astral.sh/uv/guides/install-python/) to manage Python versions or use your distro's package manager.
 
 ### Set up a virtualenv
