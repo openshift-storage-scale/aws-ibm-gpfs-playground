@@ -103,7 +103,9 @@
 
         - name: Print error details (captured output)
           ansible.builtin.debug:
-            msg: "{{ (openshift_install_result.stderr_lines | default([])) + (openshift_install_result.stdout_lines | default([])) | list | tail(20) }}"
+            msg: "{{ combined_output[-20:] if combined_output | length > 0 else ['No output captured'] }}"
+          vars:
+            combined_output: "{{ (openshift_install_result.stderr_lines | default([])) + (openshift_install_result.stdout_lines | default([])) }}"
 
         - name: Provide helpful information
           ansible.builtin.debug:
