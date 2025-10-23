@@ -33,7 +33,7 @@ This can be done through your distro's package manager, the package is called `h
 ### Set up credentials
 
 1. Make sure your aws credentials and aws cli are in place and working (download the latest CLI tool if necessary).
-2. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
+2. Make sure you have Red Hat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
 3. Copy the token to ~/.pullsecret.json. The file should be in the following format:
 
 ```json
