@@ -4,7 +4,7 @@ metadata:
   name: {{ operator_name }}
   namespace: {{ operator_namespace }}
 spec:
-  channel: alpha
+  channel: {{ operator_channel }}
   installPlanApproval: Automatic
   name: {{ operator_name }}
   source: test-fusion-access-operator

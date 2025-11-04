@@ -1,5 +1,9 @@
 # Scripts to deploy AWS OCP cluster + GPFS
 
+## Overview
+
+This repository automates the deployment of an OpenShift cluster on AWS with IBM Spectrum Scale (GPFS) storage using the openshift-fusion-access operator. The setup uses the **FileSystemClaim** controller to automatically create LocalDisk, Filesystem, and StorageClass resources.
+
 ## Tear up
 
 Here are the steps to deploy OCP + GPFS. These steps will create an OCP
@@ -45,7 +49,14 @@ gpfs_volume_name: "<your-user-name>-volume"
 # ocp_az: "eu-central-1a"
 # ocp_region: "eu-central-1"
 
-# gpfs_version: "v5.2.3.x"
+# Operator configuration (stable for production, alpha for development)
+# operator_catalog_tag: stable
+# operator_channel: alpha
+# pullsecret_extra_file: "{{ '~/.tokens/pull-secret-extra.txt' | expanduser }}"
+
+# GPFS version (must match what the operator supports)
+# gpfs_cnsa_version: "v5.2.3.1"
+
 # ssh_pubkey: "ssh-ed25519 AAAAC3... john.doe@rh.com"
 EOF
 ```
@@ -57,6 +68,20 @@ Change it by uncommenting and tweaking at least the following lines.
 - `gpfs_volume_name`
 - `ocp_az`
 - `ocp_region`
+
+**For alpha operator (development/unreleased versions):**
+- Set `operator_catalog_tag: alpha` and `operator_channel: alpha`
+- Set `pullsecret_extra_file` to point to your alpha registry credentials file
+- Update `gpfs_cnsa_version` to match the operator's supported version
+- Create `~/.tokens/pull-secret-extra.txt` with the alpha registry credentials in JSON format:
+  ```json
+  {
+    "quay.io/openshift-storage-scale": {
+      "auth": "your-base64-encoded-credentials",
+      "email": ""
+    }
+  }
+  ```
 
 6. Make sure you read `group_vars/all` and have all the files with the secret material done.
 7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
@@ -76,6 +101,26 @@ Look for the section in the log after the "Install complete!" message. The log w
 - OpenShift web-console: The URL for the OpenShift web console in AWS.
 - Login Credentials: The username and password to log in to the web console.
 
+## Architecture
+
+The deployment now uses the **FileSystemClaim** controller pattern:
+
+1. **FileSystemClaim**: A high-level resource that declares storage requirements with device paths
+2. **Automatic Resource Creation**: The FileSystemClaim controller automatically creates:
+   - LocalDisk resources for each device
+   - Filesystem resource using those LocalDisks
+   - StorageClass for application consumption
+3. **Device Discovery**: The operator discovers available devices via LocalVolumeDiscoveryResult (LVDR)
+4. **Test Workloads**: Writer and reader deployments validate the storage functionality
+
+### What Gets Created
+
+- **Operator namespace**: `ibm-fusion-access`
+- **GPFS namespace**: `ibm-spectrum-scale`
+- **FileSystemClaim**: `filesystemclaim-sample` (creates LocalDisk, Filesystem, StorageClass)
+- **Test namespace**: `ibm-test-deployment` (with writer/reader deployments)
+- **StorageClass**: `filesystemclaim-sample` (RWX persistent volumes)
+
 ## Tear down
 
 To delete the cluster and the EBS volume, run `make destroy`
@@ -86,7 +131,7 @@ Run `make gpfs-health` to run some GPFS healthcheck commands
 
 ## Delete GPFS objects
 
-Run `make gpfs-cleanup` to remove all the gpfs objects we know about
+Run `make gpfs-cleanup` to remove all the gpfs objects (FileSystemClaim, test deployments, FusionAccess CR, etc.)
 
 ## Add a new EBS volume to a running OCP cluster
 

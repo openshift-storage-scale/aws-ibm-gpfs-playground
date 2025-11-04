@@ -34,7 +34,7 @@
   tags:
     - 6_gpfs
   ansible.builtin.shell: |
-    set -e
+    set -ex
     export KUBECONFIG={{ kubeconfig }}
     COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale -l app.kubernetes.io/name=core --no-headers | grep Running | wc -l)
     NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
@@ -89,83 +89,94 @@
   ansible.builtin.set_fact:
     worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
-# This actually works for any worker when using the symlink
-- name: Set device name for worker_0
+- name: Query LocalVolumeDiscoveryResult to get device path
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} get localvolumediscoveryresult -n {{ operator_namespace }} -o json
+  register: lvdr_output
+  retries: 20
+  delay: 30
+  until: 
+    - lvdr_output is not failed
+    - (lvdr_output.stdout | from_json)['items'] | length > 0
+    - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices is defined
+    - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices | length > 0
+
+- name: Parse LVDR and extract device path
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
-    realdevice: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid }}"
+    lvdr_json: "{{ lvdr_output.stdout | from_json }}"
 
-- name: Template the localdisk
+- name: Debug LVDR structure
+  tags:
+    - 6_gpfs
+  ansible.builtin.debug:
+    msg: 
+      - "LVDR items count: {{ lvdr_json['items'] | length }}"
+      - "First LVDR node: {{ lvdr_json['items'][0].spec.nodeName }}"
+      - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
+
+- name: Set device path from first discovered device
+  tags:
+    - 6_gpfs
+  ansible.builtin.set_fact:
+    ebs_device_path: "{{ lvdr_json['items'][0].status.discoveredDevices[0].path }}"
+
+- name: Debug device path
+  tags:
+    - 6_gpfs
+  ansible.builtin.debug:
+    msg: "Using device path: {{ ebs_device_path }}"
+
+- name: Template the FileSystemClaim
   tags:
     - 6_gpfs
   ansible.builtin.template:
-    src: ../templates/localdisk.yaml
-    dest: "{{ gpfsfolder }}/localdisk.yaml"
+    src: ../templates/filesystemclaim.yaml
+    dest: "{{ gpfsfolder }}/filesystemclaim.yaml"
 
-- name: Apply the localdisk
+- name: Apply the FileSystemClaim
   tags:
     - 6_gpfs
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk.yaml"
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystemclaim.yaml"
   retries: 10
   delay: 30
-  register: localdisk_ready
-  until: localdisk_ready is not failed
+  register: filesystemclaim_ready
+  until: filesystemclaim_ready is not failed
 
-- name: Template the filesystem
+- name: Wait for FileSystemClaim to be ready
+  tags:
+    - 7_gpfs
+  ansible.builtin.shell: |
+    set -ex
+    export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} get filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"
+  retries: 30
+  delay: 30
+  register: filesystemclaim_ready
+  until: filesystemclaim_ready is not failed
+
+- name: Template the snapshotclass
   tags:
     - 7_gpfs
   ansible.builtin.template:
-    src: ../templates/filesystem.yaml
-    dest: "{{ gpfsfolder }}/filesystem.yaml"
+    src: ../templates/snapshot.yaml
+    dest: "{{ gpfsfolder }}/snapshot.yaml"
 
-- name: Apply the filesystem
+- name: Apply the snapshotclass
   tags:
     - 7_gpfs
   ansible.builtin.shell: |
     set -ex
     export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem.yaml"
-  retries: 10
-  delay: 30
-  register: filesystem_ready
-  until: filesystem_ready is not failed
-
-- name: Wait for the filesystem to be ready
-  tags:
-    - 7_gpfs
-  ansible.builtin.shell: |
-    set -ex
-    export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} get filesystem -n ibm-spectrum-scale {{ gpfs_fs_name }} -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size }}"
-  retries: 15
-  delay: 30
-  register: filesystem_ready
-  until: filesystem_ready is not failed
-
-- name: Template the snapshotclass and storageclass
-  tags:
-    - 7_gpfs
-  ansible.builtin.template:
-    src: ../templates/{{ item }}
-    dest: "{{ gpfsfolder }}/{{ item }}"
-  loop:
-    - snapshot.yaml
-    - storageclass.yaml
-
-- name: Apply the snapshotclass and storageclass
-  tags:
-    - 7_gpfs
-  ansible.builtin.shell: |
-    set -ex
-    export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
-  loop:
-    - snapshot.yaml
-    - storageclass.yaml
+    {{ oc_bin }} apply -f "{{ gpfsfolder }}/snapshot.yaml"
 
 - name: Template the test deployment
   tags:

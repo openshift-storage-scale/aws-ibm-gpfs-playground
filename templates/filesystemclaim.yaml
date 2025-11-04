@@ -1,0 +1,12 @@
+apiVersion: fusion.storage.openshift.io/v1alpha1
+kind: FileSystemClaim
+metadata:
+  name: filesystemclaim-sample
+  namespace: ibm-spectrum-scale
+  labels:
+    app.kubernetes.io/name: openshift-fusion-access-operator
+    app.kubernetes.io/managed-by: ansible
+spec:
+  devices:
+    - "{{ ebs_device_path }}"
+
