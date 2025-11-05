@@ -72,8 +72,20 @@
       set -ex
       export KUBECONFIG={{ kubeconfig }}
       # Wait until no LocalDisk or Filesystem resources exist
-      LOCAL_DISKS=$({{ oc_bin }} get localdisk -n ibm-spectrum-scale --no-headers 2>/dev/null | wc -l)
-      FILESYSTEMS=$({{ oc_bin }} get filesystem -n ibm-spectrum-scale --no-headers 2>/dev/null | wc -l)
+      LOCAL_DISKS_RAW=$({{ oc_bin }} get localdisk -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      LOCAL_DISKS_STATUS=$?
+      FILESYSTEMS_RAW=$({{ oc_bin }} get filesystem -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      FILESYSTEMS_STATUS=$?
+      if [ ${LOCAL_DISKS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get localdisk' failed"
+        exit 2
+      fi
+      if [ ${FILESYSTEMS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get filesystem' failed"
+        exit 3
+      fi
+      LOCAL_DISKS=$(echo "$LOCAL_DISKS_RAW" | wc -l)
+      FILESYSTEMS=$(echo "$FILESYSTEMS_RAW" | wc -l)
       if [ ${LOCAL_DISKS} -gt 0 ] || [ ${FILESYSTEMS} -gt 0 ]; then
         exit 1
       fi

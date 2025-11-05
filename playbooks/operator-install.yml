@@ -60,6 +60,23 @@
   until: namespace_ready is not failed
   when: operator_catalog_tag == "alpha"
 
+- name: Validate pullsecret_extra_file exists
+  tags:
+    - 4_operator
+  ansible.builtin.stat:
+    path: "{{ pullsecret_extra_file }}"
+  register: pullsecret_extra_stat
+  when: operator_catalog_tag == "alpha"
+
+- name: Fail if pullsecret_extra_file is missing
+  tags:
+    - 4_operator
+  ansible.builtin.fail:
+    msg: "Alpha operator requires pullsecret_extra_file at {{ pullsecret_extra_file }} but file does not exist or is not readable"
+  when:
+    - operator_catalog_tag == "alpha"
+    - not pullsecret_extra_stat.stat.exists or not pullsecret_extra_stat.stat.readable
+
 - name: Create the fusion-pullsecret-extra for alpha catalog
   tags:
     - 4_operator

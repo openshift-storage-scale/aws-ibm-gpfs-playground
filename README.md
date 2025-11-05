@@ -71,17 +71,18 @@ Change it by uncommenting and tweaking at least the following lines.
 
 **For alpha operator (development/unreleased versions):**
 - Set `operator_catalog_tag: alpha` and `operator_channel: alpha`
-- Set `pullsecret_extra_file` to point to your alpha registry credentials file
+- Set `pullsecret_extra_file` to point to your alpha registry credentials file (default: `~/.tokens/pull-secret-extra.txt`)
 - Update `gpfs_cnsa_version` to match the operator's supported version
-- Create `~/.tokens/pull-secret-extra.txt` with the alpha registry credentials in JSON format:
+- Create the pull secret file with alpha registry credentials in dockerconfigjson format:
   ```json
   {
     "quay.io/openshift-storage-scale": {
-      "auth": "your-base64-encoded-credentials",
+      "auth": "base64-encoded-username:password",
       "email": ""
     }
   }
   ```
+  Note: The `auth` field should contain base64-encoded credentials in the format `username:password`
 
 6. Make sure you read `group_vars/all` and have all the files with the secret material done.
 7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
