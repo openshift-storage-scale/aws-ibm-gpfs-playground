@@ -45,45 +45,64 @@
       {{ oc_bin }} delete -f "{{ gpfsfolder }}/snapshot.yaml"
     failed_when: false
 
-  - name: Delete the filesystem
+  - name: Delete the FileSystemClaim (will cascade delete LocalDisk, Filesystem, and StorageClass)
     tags:
       - 2_cleanup
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} delete -f "{{ gpfsfolder }}/filesystem.yaml"
-    retries: 2
-    delay: 5
-    register: filesystem_ready
-    until: filesystem_ready is not failed
+      {{ oc_bin }} delete filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample
+    retries: 5
+    delay: 10
+    register: filesystemclaim_ready
+    until: filesystemclaim_ready is not failed
     ignore_errors: true
 
-  - name: Debug filesystem removal errors
+  - name: Debug FileSystemClaim removal errors
     tags:
       - 2_cleanup
     ansible.builtin.debug:
-      msg: "{{ filesystem_ready.stdout }}"
-    when: filesystem_ready is failed
+      msg: "{{ filesystemclaim_ready.stdout }}"
+    when: filesystemclaim_ready is failed
 
-  - name: Delete the localdisk
+  - name: Wait for LocalDisk and Filesystem to be deleted (cascade)
     tags:
       - 2_cleanup
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} delete -f "{{ gpfsfolder }}/localdisk.yaml"
-    retries: 2
-    delay: 5
-    register: localdisk_ready
-    until: localdisk_ready is not failed
+      # Wait until no LocalDisk or Filesystem resources exist
+      LOCAL_DISKS_RAW=$({{ oc_bin }} get localdisk -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      LOCAL_DISKS_STATUS=$?
+      FILESYSTEMS_RAW=$({{ oc_bin }} get filesystem -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      FILESYSTEMS_STATUS=$?
+      if [ ${LOCAL_DISKS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get localdisk' failed"
+        exit 2
+      fi
+      if [ ${FILESYSTEMS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get filesystem' failed"
+        exit 3
+      fi
+      LOCAL_DISKS=$(echo "$LOCAL_DISKS_RAW" | wc -l)
+      FILESYSTEMS=$(echo "$FILESYSTEMS_RAW" | wc -l)
+      if [ ${LOCAL_DISKS} -gt 0 ] || [ ${FILESYSTEMS} -gt 0 ]; then
+        exit 1
+      fi
+    retries: 5
+    delay: 10
+    register: cascade_delete
+    until: cascade_delete is not failed
     ignore_errors: true
 
-  - name: Debug localdisk removal errors
+  - name: Delete StorageClass if it still exists
     tags:
       - 2_cleanup
-    ansible.builtin.debug:
-      msg: "{{ localdisk_ready.stdout }}"
-    when: localdisk_ready is failed
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete storageclass filesystemclaim-sample
+    failed_when: false
 
   - name: Delete the cluster
     tags:

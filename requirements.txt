@@ -1,3 +1,4 @@
-botocore
+ansible-core
+ansible-lint
 boto3
-packaging
+botocore

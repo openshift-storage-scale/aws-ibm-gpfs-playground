@@ -84,6 +84,14 @@ list-tags: ## Lists all tags in the install playbook
 ansible-deps: ## Install Ansible dependencies
 	ansible-galaxy collection install -r requirements.yml
 
+.PHONY: ebs-add
+ebs-add: ## Adds a new EBS volume via ebs-add.yml.
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ebs-add.yml
+
+.PHONY: ebs-remove
+ebs-remove: ## Removes an existing EBS volume via ebs-remove.yml.
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ebs-remove.yml
+
 ##@ CI / Linter tasks
 .PHONY: lint
 lint: ## Run ansible-lint on the codebase

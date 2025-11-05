@@ -78,7 +78,10 @@ grafana_url: "https://raw.githubusercontent.com/IBM/ibm-spectrum-scale-bridge-fo
 operator_name: openshift-fusion-access-operator
 operator_namespace: ibm-fusion-access
 operator_catalog: openshift-fusion-access-catalog
+# Catalog tag: "stable" for released versions, "alpha" for development/unreleased versions
 operator_catalog_tag: stable
+# Subscription channel: "alpha" for latest features, "stable" for production
+operator_channel: alpha
 operator_registry: quay.io/openshift-storage-scale
 
 openshift_mirror: "https://mirror.openshift.com/pub/openshift-v4"
@@ -98,6 +101,8 @@ pullsecret: "{{ lookup('file', '~/.pullsecret.json' | expanduser) }}"
 
 ibmentitlementkeyfile: "{{ '~/.ibm-entitlement-key' | expanduser }}"
 ibmentitlementkey: "{{ lookup('file', ibmentitlementkeyfile) }}"
+pullsecret_extra_file: "{{ '~/.tokens/pull-secret-extra.txt' | expanduser }}"
+pullsecret_extra: "{{ lookup('file', pullsecret_extra_file) }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
 baremetal_env: false

@@ -13,7 +13,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: "ibm-test-sc"
+  storageClassName: "filesystemclaim-sample"
   resources:
     requests:
       storage: 200Mi
