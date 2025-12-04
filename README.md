@@ -4,7 +4,7 @@
 
 This repository automates the deployment of an OpenShift cluster on AWS with IBM Spectrum Scale (GPFS) storage using the openshift-fusion-access operator. The setup uses the **FileSystemClaim** controller to automatically create LocalDisk, Filesystem, and StorageClass resources.
 
-## Tear up
+## Setup
 
 Here are the steps to deploy OCP + GPFS. These steps will create an OCP
 cluster with 3 master + 3 workers by default and then will create a multi-attach
@@ -85,22 +85,48 @@ Change it by uncommenting and tweaking at least the following lines.
   Note: The `auth` field should contain base64-encoded credentials in the format `username:password`
 
 6. Make sure you read `group_vars/all` and have all the files with the secret material done.
-7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
+
+7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under aws-gpfs-playground/<ocp_cluster_name>/<ocp_version>.
 
 8. Run `make install` to install the openshift-fusion-access operator
-   
-   > **⏱️ Execution Time:** The `make install` process takes approximately **40-45 minutes** to complete.  
-   > Based on historical runs, expect the cluster installation step alone to take around 40-44 minutes.  
+
+   > **⏱️ Execution Time:** The `make install` process takes approximately **40-45 minutes** to complete.
+   > Based on historical runs, expect the cluster installation step alone to take around 40-44 minutes.
    > This is normal and includes provisioning AWS infrastructure, bootstrapping OpenShift, and configuring the cluster.
 
 9. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
-   ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
+   ~/aws-gpfs-playground/<ocp_cluster_name>/ocp_install_files/.openshift_install.log
 
 Look for the section in the log after the "Install complete!" message. The log will contain the following key details:
 
 - KUBECONFIG File Path: The path for the Kube Config file.
 - OpenShift web-console: The URL for the OpenShift web console in AWS.
 - Login Credentials: The username and password to log in to the web console.
+
+## Teardown
+
+To delete the cluster and the EBS volume, run `make destroy`
+
+## Multiple clusters
+
+The playground supports creating multiple clusters, each cluster having a different name.
+This can be achieved by specifying a variables file when running the playbooks, which contains overrides for the cluster name and other variables as desired.
+
+For example, suppose you have created a cluster named `gpfs-user-a` in the eu-central-1 region using the example overrides.yml as discussed above. To create a second cluster named `gpfs-user-b` in the us-west-1 region, create a file us-west-1.yml with the following contents.
+```
+ocp_cluster_name: gpfs-user-b
+ocp_region: us-west-1
+ocp_az: us-west-1a
+```
+and then run
+```
+ansible-playbook -i hosts -e @us-west-1.yml playbooks/ocp-clients.yml
+ansible-playbook -i hosts -e @us-west-1.yml playbooks/install.yml
+```
+To delete the cluster run
+```
+ansible-playbook -i hosts -e @us-west-1.yml playbooks/destroy.yml
+```
 
 ## Architecture
 
@@ -122,10 +148,6 @@ The deployment now uses the **FileSystemClaim** controller pattern:
 - **Test namespace**: `ibm-test-deployment` (with writer/reader deployments)
 - **StorageClass**: `filesystemclaim-sample` (RWX persistent volumes)
 
-## Tear down
-
-To delete the cluster and the EBS volume, run `make destroy`
-
 ## Health Check
 
 Run `make gpfs-health` to run some GPFS healthcheck commands
@@ -140,10 +162,10 @@ To add a new EBS volume to a specific set of EC2 instances in your running OpenS
 
 ### Usage
 
-1. **Specify the target instances**  
+1. **Specify the target instances**
    You can target specific EC2 instances by providing their instance IDs or by defining a filter to select them based on tags or other attributes.
 
-   - **Using instance IDs**:  
+   - **Using instance IDs**:
      Create or edit your `overrides.yml` file and set the `instance_ids` variable with a list of EC2 instance IDs:
      ```yaml
      instance_ids:
@@ -152,7 +174,7 @@ To add a new EBS volume to a specific set of EC2 instances in your running OpenS
      ```
      > **Note:** If you specify `instance_ids`, the playbook will attach the new EBS volume to these instances.
 
-   - **Using a filter**:  
+   - **Using a filter**:
      Alternatively, you can use `instance_filter` to select instances by tag or other criteria:
      ```yaml
      instance_filter:
@@ -161,8 +183,8 @@ To add a new EBS volume to a specific set of EC2 instances in your running OpenS
      ```
      > If `instance_ids` is empty, the playbook will use `instance_filter` to find matching instances.
 
-2. **Override other variables as needed**  
-   The playbook supports many overridable variables, such as `volume_size`, `volume_type`, `multi_attach`, `iops`, `throughput`, and more.  
+2. **Override other variables as needed**
+   The playbook supports many overridable variables, such as `volume_size`, `volume_type`, `multi_attach`, `iops`, `throughput`, and more.
    For example, to create a 200 GiB `gp3` volume:
    ```yaml
    volume_size: 200
@@ -172,7 +194,7 @@ To add a new EBS volume to a specific set of EC2 instances in your running OpenS
 
    > **Tip:** Check out the `playbooks/ebs-add.yml` file to see the full list of variables you can override to customize the volume and attachment behavior.
 
-3. **Run the playbook**  
+3. **Run the playbook**
    Use the provided Makefile target to run the playbook:
    ```
    make ebs-add
@@ -186,10 +208,10 @@ To remove an existing EBS volume attached to a set of EC2 instances, you can use
 
 ### Usage
 
-1. **Identify the EBS volume to remove**  
+1. **Identify the EBS volume to remove**
    You need the EBS volume ID (e.g., `vol-0123456789abcdef0`) that you wish to detach and delete. You can find this in the AWS Console or by using the AWS CLI.
 
-2. **Set the `volume_id` variable**  
+2. **Set the `volume_id` variable**
    Specify the volume ID in your `overrides.yml` file:
    ```yaml
    volume_id: "vol-0123456789abcdef0"
@@ -199,7 +221,7 @@ To remove an existing EBS volume attached to a set of EC2 instances, you can use
    EXTRA_VARS="-e volume_id=vol-0123456789abcdef0" make ebs-remove
    ```
 
-3. **Run the playbook**  
+3. **Run the playbook**
    Use the provided Makefile target to execute the removal:
    ```
    make ebs-remove
@@ -226,5 +248,3 @@ make aws-cleanup-stale-resources           # Run actual cleanup
 ```
 
 For detailed information, troubleshooting, and usage scenarios, see the **[AWS Comprehensive Cleanup Guide](docs/AWS_COMPREHENSIVE_CLEANUP_GUIDE.md)**.
-
-

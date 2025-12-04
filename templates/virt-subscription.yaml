@@ -16,6 +16,12 @@ spec:
   name: kubevirt-hyperconverged
   source: redhat-operators
   sourceNamespace: openshift-marketplace
+{% if kvm_emulation %}
+  config:
+    env:
+    - name: KVM_EMULATION
+      value: "true"
+{% endif %}
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup

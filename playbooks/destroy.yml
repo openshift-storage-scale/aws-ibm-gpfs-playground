@@ -12,22 +12,15 @@
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file
 
-    - name: Find OpenShift EC2 Instances
-      amazon.aws.ec2_instance_info:
-        profile: "{{ aws_profile }}"
-        region: "{{ ocp_region }}"
-        filters:
-          "tag:Name": "{{ ocp_cluster_name }}*worker*"
-          "instance-state-name": "running"
-      register: ec2_workers
-
-    - name: Set EC2 workers instance IDs
-      ansible.builtin.set_fact:
-        worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
+    - name: Get Openshift worker nodes and their AWS instance IDs
+      tags:
+        - 3_ebs
+      ansible.builtin.import_tasks:
+        file: workers.yml
 
     - name: Debug worker instance IDs
       ansible.builtin.debug:
-        msg: "{{ worker_ec2_ids }}"
+        var: worker_ec2_ids
 
     - name: Destroy ocp cluster
       tags:
