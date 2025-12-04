@@ -1,0 +1,12 @@
+- name: Get AWS caller identity for Owner tag
+  amazon.aws.aws_caller_info:
+    profile: "{{ aws_profile }}"
+  register: aws_caller_info
+
+- name: Set OCP owner
+  ansible.builtin.set_fact:
+    ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
+
+- name: Print Owner info
+  ansible.builtin.debug:
+    msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"

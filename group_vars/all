@@ -54,6 +54,7 @@ aws_profile: "default"
 ebs_volume_size: 150
 ebs_volume_size_ceph: 160
 ebs_volume_type: "io2"
+ebs_volume_name: "{{ gpfs_volume_name }}"
 ebs_device_name: "/dev/sdd"
 ebs_device_name_ceph: "/dev/sde"
 ebs_iops: 5000
@@ -107,6 +108,7 @@ pullsecret_extra: "{{ lookup('file', pullsecret_extra_file) }}"
 kubeadmin_pass: "{{ lookup('file', '~/.kubeadminpass',errors='ignore' | expanduser) }}"
 ssh_pubkey: "{{ lookup('file', '~/.ssh/id_rsa.pub' | expanduser) }}"
 baremetal_env: false
+kvm_emulation: false
 vmpass: "{{ lookup('file', '~/.vmpass' | expanduser) }}"
 dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 

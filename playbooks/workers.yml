@@ -1,0 +1,28 @@
+- name: Get OpenShift worker node instance ids
+  block:
+    - name: Get OpenShift worker nodes
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      kubernetes.core.k8s_info:
+        kind: Node
+        label_selectors:
+        - node-role.kubernetes.io/worker=
+      register: node_list
+    - name: Filter nodes by cluster name
+      ansible.builtin.set_fact:
+        worker_nodes: "{{ node_list.resources | selectattr('metadata.annotations', 'defined') | json_query(worker_query) }}"
+      vars:
+        worker_query: "[?contains(metadata.annotations.\"machine.openshift.io/machine\", '/{{ ocp_cluster_name }}-')]"
+    - name: Display node names and their instance IDs
+      debug:
+        msg: "Instance: {{ item.spec.providerID.split('/')[-1] }}"
+      loop: "{{ worker_nodes }}"
+      loop_control:
+        label: "{{ item.metadata.name }}"
+    - name: Get instance IDs
+      ansible.builtin.set_fact:
+        worker_ec2_ids: "{{ worker_nodes | map(attribute='spec.providerID') | map('split', '/') | map('last') }}"
+  rescue:
+    - name: Could not find workers
+      ansible.builtin.set_fact:
+        worker_ec2_ids: []

@@ -24,4 +24,4 @@ metadata:
 spec:
   targetNamespaces:
     - "{{ ceph_ns }}"
-  upgradeStrategy: Default  
+  upgradeStrategy: Default
