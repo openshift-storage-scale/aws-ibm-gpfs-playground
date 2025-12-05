@@ -6,8 +6,6 @@
   vars_files:
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
-  vars:
-    iscsi_target_ssh_key_name: aeros-ssh-key-rsa
 
   tasks:
     - name: Print AWS infos
@@ -26,7 +24,7 @@
         profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
         filters:
-          "tag:Name": "iscsi-target"
+          "tag:Name": "{{ ocp_cluster_name }}-iscsi-target"
       register: ec2_node_info
 
     - name: Set ec2 instance id
@@ -45,5 +43,5 @@
       amazon.aws.ec2_security_group:
         profile: "{{ aws_profile }}"
         region: "{{ ocp_region }}"
-        name: iscsi-target-security-group
+        name: "{{ ocp_cluster_name }}-iscsi-target-sg"
         state: absent

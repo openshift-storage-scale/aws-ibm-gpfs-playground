@@ -6,7 +6,7 @@ endif
 EXTRA_VARS ?=
 NUM_VOLUMES ?= 1
 
-# When true we set the default to a BM instance for Power90
+# When true create a bare metal cluster
 BAREMETAL ?= false
 ifeq ($(BAREMETAL), true)
 	EXTRA_ARGS = -e @./vars/baremetal.yaml -e @./overrides.yml 
@@ -80,6 +80,10 @@ aws-cleanup-stale-resources-dryrun: ## Preview stale resource cleanup without ma
 .PHONY: iscsi
 iscsi: ## Creates iscsi ec2 target and connects it to worker nodes
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/iscsi.yml
+
+.PHONY: iscsi-multipath
+iscsi-multipath: ## Creates iscsi ec2 target with 2 IPs and connects it with multi-pathing to worker nodes
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/iscsi-multipath.yml
 
 .PHONY: iscsi-cleanup
 iscsi-cleanup: ## Removes iscsi ec2 resources
