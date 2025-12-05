@@ -46,7 +46,7 @@
   retries: 30
   delay: 30
 
-- name: Get the Volume ID by Tag Name again
+- name: Get EBS volume info by tag name
   tags:
     - 6_gpfs
   amazon.aws.ec2_vol_info:
@@ -56,38 +56,12 @@
       "tag:Name": "{{ gpfs_volume_name }}"
   register: volume_info
 
-- name: Fail if there is not exactly one ebs volume
+- name: Fail if there is not exactly one EBS volume with the name
   tags:
     - 6_gpfs
   ansible.builtin.fail:
-    msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
+    msg: "There must be only one EBS volume called {{ gpfs_volume_name }}: {{ volume_info }}"
   when: volume_info.volumes | length != 1
-
-- name: Set volumeid fact
-  tags:
-    - 6_gpfs
-  ansible.builtin.set_fact:
-    ebs_volid: "{{ volume_info.volumes[0].id | replace('-', '') }}"
-
-- name: Debug volumeid fact
-  tags:
-    - 6_gpfs
-  ansible.builtin.debug:
-    msg: "{{ ebs_volid }}"
-
-- name: Get worker nodes names
-  tags:
-    - 6_gpfs
-  ansible.builtin.shell: |
-    export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
-  register: worker_nodes_output
-
-- name: Set worker nodes names fact
-  tags:
-    - 6_gpfs
-  ansible.builtin.set_fact:
-    worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
 - name: Query LocalVolumeDiscoveryResult to get device path
   tags:
@@ -99,7 +73,7 @@
   register: lvdr_output
   retries: 20
   delay: 30
-  until: 
+  until:
     - lvdr_output is not failed
     - (lvdr_output.stdout | from_json)['items'] | length > 0
     - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices is defined
@@ -115,7 +89,7 @@
   tags:
     - 6_gpfs
   ansible.builtin.debug:
-    msg: 
+    msg:
       - "LVDR items count: {{ lvdr_json['items'] | length }}"
       - "First LVDR node: {{ lvdr_json['items'][0].spec.nodeName }}"
       - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
@@ -126,11 +100,11 @@
   ansible.builtin.set_fact:
     ebs_device_wwn: "{{ lvdr_json['items'][0].status.discoveredDevices[0].WWN }}"
 
-- name: Debug device path
+- name: Debug device WWN
   tags:
     - 6_gpfs
   ansible.builtin.debug:
-    msg: "Using device WWN: {{ ebs_device_wwn }}"
+    var: ebs_device_wwn
 
 - name: Template the FileSystemClaim
   tags:
@@ -148,8 +122,8 @@
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystemclaim.yaml"
   retries: 10
   delay: 30
-  register: filesystemclaim_ready
-  until: filesystemclaim_ready is not failed
+  register: filesystemclaim_apply
+  until: filesystemclaim_apply is not failed
 
 - name: Wait for FileSystemClaim to be ready
   tags:
@@ -194,7 +168,7 @@
     {{ oc_bin }} apply -f "{{ gpfsfolder }}/test_consume.yaml"
 
 - block:
-  - name: Get the Volume ID by Tag Name again (2)
+  - name: Get EBS volume info by tag name (2)
     tags:
       - 6_gpfs
     amazon.aws.ec2_vol_info:
@@ -204,98 +178,85 @@
         "tag:Name": "{{ gpfs_volume_name_two }}"
     register: volume_info_two
 
-  - name: Fail if there is not exactly one ebs volume (2)
+  - name: Fail if there is not exactly one EBS volume with the name (2)
     tags:
       - 6_gpfs
     ansible.builtin.fail:
-      msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
+      msg: "There must be only one EBS volume called {{ gpfs_volume_name_two }}: {{ volume_info_two }}"
     when: volume_info_two.volumes | length != 1
 
-  - name: Set volumeid fact
+  - name: Query LocalVolumeDiscoveryResult to get device path (2)
+    tags:
+      - 6_gpfs
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} get localvolumediscoveryresult -n {{ operator_namespace }} -o json
+    register: lvdr_output
+    retries: 20
+    delay: 30
+    until:
+      - lvdr_output is not failed
+      - (lvdr_output.stdout | from_json)['items'] | length > 0
+      - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices is defined
+      - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices | length > 0
+
+  - name: Parse LVDR and extract device path (2)
     tags:
       - 6_gpfs
     ansible.builtin.set_fact:
-      ebs_volid_two: "{{ volume_info_two.volumes[0].id | replace('-', '') }}"
+      lvdr_json: "{{ lvdr_output.stdout | from_json }}"
 
-  - name: Debug volumeid fact
+  - name: Debug LVDR structure (2)
     tags:
       - 6_gpfs
     ansible.builtin.debug:
-      msg: "{{ ebs_volid_two }}"
+      msg:
+        - "LVDR items count: {{ lvdr_json['items'] | length }}"
+        - "First LVDR node: {{ lvdr_json['items'][0].spec.nodeName }}"
+        - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
 
-  # This actually works for any worker when using the symlink
-  - name: Set device name for worker_0 (2)
+  - name: Set device WWN from first discovered device (2)
     tags:
       - 6_gpfs
     ansible.builtin.set_fact:
-      realdevice_two: "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{{ ebs_volid_two }}"
+      ebs_device_wwn2: "{{ lvdr_json['items'][0].status.discoveredDevices[0].WWN }}"
 
-  - name: Template the localdisk (2)
+  - name: Debug device WWN (2)
     tags:
       - 6_gpfs
-    ansible.builtin.template:
-      src: ../templates/localdisk2.yaml
-      dest: "{{ gpfsfolder }}/localdisk2.yaml"
+    ansible.builtin.debug:
+      var: ebs_device_wwn2
 
-  - name: Apply the localdisk (2)
+  - name: Template the filesystemclaim (2)
     tags:
-      - 6_gpfs
+      - 7_gpfs
+    ansible.builtin.template:
+      src: ../templates/filesystemclaim2.yaml
+      dest: "{{ gpfsfolder }}/filesystemclaim2.yaml"
+
+  - name: Apply the filesystemclaim (2)
+    tags:
+      - 7_gpfs
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} apply -f "{{ gpfsfolder }}/localdisk2.yaml"
+      {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystemclaim2.yaml"
     retries: 10
     delay: 30
-    register: localdisk_ready
-    until: localdisk_ready is not failed
+    register: filesystem_apply
+    until: filesystem_apply is not failed
 
-  - name: Template the filesystem
-    tags:
-      - 7_gpfs
-    ansible.builtin.template:
-      src: ../templates/filesystem2.yaml
-      dest: "{{ gpfsfolder }}/filesystem2.yaml"
-
-  - name: Apply the filesystem (2)
+  - name: Wait for FileSystemClaim to be ready (2)
     tags:
       - 7_gpfs
     ansible.builtin.shell: |
       set -ex
       export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} apply -f "{{ gpfsfolder }}/filesystem2.yaml"
-    retries: 10
+      {{ oc_bin }} get filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample2 -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"
+    retries: 30
     delay: 30
-    register: filesystem_ready
-    until: filesystem_ready is not failed
+    register: filesystemclaim_ready
+    until: filesystemclaim_ready is not failed
 
-  - name: Wait for the filesystem to be ready (2)
-    tags:
-      - 7_gpfs
-    ansible.builtin.shell: |
-      set -ex
-      export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} get filesystem -n ibm-spectrum-scale {{ gpfs_fs_name_two }} -o jsonpath='{.status.pools[0].totalDiskSize}' | grep "{{ ebs_volume_size_two }}"
-    retries: 15
-    delay: 30
-    register: filesystem_ready
-    until: filesystem_ready is not failed
-
-  - name: Template the snapshotclass and storageclass
-    tags:
-      - 7_gpfs
-    ansible.builtin.template:
-      src: ../templates/{{ item }}
-      dest: "{{ gpfsfolder }}/{{ item }}"
-    loop:
-      - storageclass2.yaml
-
-  - name: Apply the snapshotclass and storageclass
-    tags:
-      - 7_gpfs
-    ansible.builtin.shell: |
-      set -ex
-      export KUBECONFIG={{ kubeconfig }}
-      {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
-    loop:
-      - storageclass2.yaml
   when: baremetal_env | bool
