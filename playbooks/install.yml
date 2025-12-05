@@ -61,8 +61,9 @@
       tags:
         - 1_ocp_install
       ansible.builtin.template:
-        src: ../templates/full-cluster-install-config.j2.yaml
+        src: "{{ playbook_dir }}/../templates/full-cluster-install-config.j2.yaml"
         dest: "{{ ocpfolder }}/install-config.yaml"
+        mode: '0644'
       when: not metadata_json_file.stat.exists
 
     - name: Install ocp cluster
@@ -118,7 +119,7 @@
     - name: Fail here there is no kubeconfig file
       tags:
         - 1_ocp_install
-      ansible.builtin.fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
+      ansible.builtin.fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}/.openshift_install.log"
       when: not kubeconfig_file.stat.exists
 
     - name: Set kubeadmin password fact
