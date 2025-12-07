@@ -95,6 +95,17 @@
   ansible.builtin.set_fact:
     worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
 
+- name: Check if FileSystemClaim already exists
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -e
+    export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} get filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample 2>/dev/null
+  register: fsc_exists
+  failed_when: false
+  changed_when: false
+
 - name: Query LocalVolumeDiscoveryResult to get device path
   tags:
     - 6_gpfs
@@ -110,19 +121,23 @@
     - (lvdr_output.stdout | from_json)['items'] | length > 0
     - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices is defined
     - (lvdr_output.stdout | from_json)['items'][0].status.discoveredDevices | length > 0
+  when: fsc_exists.rc != 0
 
 - name: Parse LVDR and extract device path
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
     lvdr_json: "{{ lvdr_output.stdout | from_json }}"
+  when: fsc_exists.rc != 0
 
 - name: Fail if no devices discovered
   tags:
     - 6_gpfs
   ansible.builtin.fail:
     msg: "No devices discovered in LocalVolumeDiscoveryResult for volume {{ gpfs_volume_name }}"
-  when: lvdr_json['items'][0].status.discoveredDevices | length == 0
+  when:
+    - fsc_exists.rc != 0
+    - lvdr_json['items'][0].status.discoveredDevices | length == 0
 
 - name: Debug LVDR structure
   tags:
@@ -134,35 +149,28 @@
       - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
       - "First discovered device details: {{ lvdr_json['items'][0].status.discoveredDevices[0] }}"
       - "WWN value: {{ lvdr_json['items'][0].status.discoveredDevices[0].get('WWN', 'NOT FOUND') }}"
+  when: fsc_exists.rc != 0
 
 - name: Extract first discovered device
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
     discovered_device: "{{ lvdr_json['items'][0].status.discoveredDevices[0] }}"
+  when: fsc_exists.rc != 0
 
 - name: Set device WWN from first discovered device
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
     ebs_device_path: "{{ discovered_device.get('WWN', discovered_device.path) }}"
+  when: fsc_exists.rc != 0
 
 - name: Debug device path
   tags:
     - 6_gpfs
   ansible.builtin.debug:
     msg: "Using device identifier: {{ ebs_device_path }}"
-
-- name: Check if FileSystemClaim already exists
-  tags:
-    - 6_gpfs
-  ansible.builtin.shell: |
-    set -e
-    export KUBECONFIG={{ kubeconfig }}
-    {{ oc_bin }} get filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample 2>/dev/null
-  register: fsc_exists
-  failed_when: false
-  changed_when: false
+  when: fsc_exists.rc != 0
 
 - name: Template the FileSystemClaim
   tags:
