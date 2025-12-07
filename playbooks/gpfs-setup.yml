@@ -56,18 +56,18 @@
       "tag:Name": "{{ gpfs_volume_name }}"
   register: volume_info
 
-- name: Fail if there is not exactly one ebs volume
+- name: Fail if there are no ebs volumes
   tags:
     - 6_gpfs
   ansible.builtin.fail:
-    msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
-  when: volume_info.volumes | length != 1
+    msg: "There must be at least one ebs volume called {{ gpfs_volume_name }}: {{ volume_info }}"
+  when: volume_info.volumes | length == 0
 
-- name: Set volumeid fact
+- name: Set volumeid fact (use in-use volume if multiple exist)
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
-    ebs_volid: "{{ volume_info.volumes[0].id | replace('-', '') }}"
+    ebs_volid: "{{ (volume_info.volumes | selectattr('status', 'equalto', 'in-use') | list | first).id | replace('-', '') if (volume_info.volumes | selectattr('status', 'equalto', 'in-use') | list | length > 0) else volume_info.volumes[0].id | replace('-', '') }}"
 
 - name: Debug volumeid fact
   tags:
@@ -119,18 +119,31 @@
       - "LVDR items count: {{ lvdr_json['items'] | length }}"
       - "First LVDR node: {{ lvdr_json['items'][0].spec.nodeName }}"
       - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
+      - "First discovered device details: {{ lvdr_json['items'][0].status.discoveredDevices[0] }}"
+      - "WWN value: {{ lvdr_json['items'][0].status.discoveredDevices[0].get('WWN', 'NOT FOUND') }}"
 
-- name: Set device path from first discovered device
+- name: Set device WWN from first discovered device
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
-    ebs_device_path: "{{ lvdr_json['items'][0].status.discoveredDevices[0].path }}"
+    ebs_device_path: "{{ lvdr_json['items'][0].status.discoveredDevices[0].get('WWN', lvdr_json['items'][0].status.discoveredDevices[0].path) }}"
 
 - name: Debug device path
   tags:
     - 6_gpfs
   ansible.builtin.debug:
-    msg: "Using device path: {{ ebs_device_path }}"
+    msg: "Using device identifier: {{ ebs_device_path }}"
+
+- name: Check if FileSystemClaim already exists
+  tags:
+    - 6_gpfs
+  ansible.builtin.shell: |
+    set -e
+    export KUBECONFIG={{ kubeconfig }}
+    {{ oc_bin }} get filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample 2>/dev/null
+  register: fsc_exists
+  failed_when: false
+  changed_when: false
 
 - name: Template the FileSystemClaim
   tags:
@@ -138,6 +151,7 @@
   ansible.builtin.template:
     src: ../templates/filesystemclaim.yaml
     dest: "{{ gpfsfolder }}/filesystemclaim.yaml"
+  when: fsc_exists.rc != 0
 
 - name: Apply the FileSystemClaim
   tags:
@@ -150,6 +164,7 @@
   delay: 30
   register: filesystemclaim_ready
   until: filesystemclaim_ready is not failed
+  when: fsc_exists.rc != 0
 
 - name: Wait for FileSystemClaim to be ready
   tags:
@@ -204,18 +219,18 @@
         "tag:Name": "{{ gpfs_volume_name_two }}"
     register: volume_info_two
 
-  - name: Fail if there is not exactly one ebs volume (2)
+  - name: Fail if there are no ebs volumes (2)
     tags:
       - 6_gpfs
     ansible.builtin.fail:
-      msg: "There must be only one ebs volumes called {{ gpfs_volume_name }}: {{ volume_info }}"
-    when: volume_info_two.volumes | length != 1
+      msg: "There must be at least one ebs volume called {{ gpfs_volume_name_two }}: {{ volume_info_two }}"
+    when: volume_info_two.volumes | length == 0
 
-  - name: Set volumeid fact
+  - name: Set volumeid fact (2) (use in-use volume if multiple exist)
     tags:
       - 6_gpfs
     ansible.builtin.set_fact:
-      ebs_volid_two: "{{ volume_info_two.volumes[0].id | replace('-', '') }}"
+      ebs_volid_two: "{{ (volume_info_two.volumes | selectattr('status', 'equalto', 'in-use') | list | first).id | replace('-', '') if (volume_info_two.volumes | selectattr('status', 'equalto', 'in-use') | list | length > 0) else volume_info_two.volumes[0].id | replace('-', '') }}"
 
   - name: Debug volumeid fact
     tags:
