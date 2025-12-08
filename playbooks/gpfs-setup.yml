@@ -197,7 +197,7 @@
   delay: 30
   register: filesystemclaim_ready
   until: filesystemclaim_ready is not failed
-  when: fsc_check.resources | length == 0
+  when: fsc_check.rc != 0
 
 - name: Wait for FileSystemClaim to be ready
   tags:
