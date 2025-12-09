@@ -8,31 +8,49 @@ hitachi_root_volume_size: 100  # GB
 hitachi_data_volume_size: 500   # GB per node
 hitachi_journal_volume_size: 50  # GB per node
 
-# Hitachi SDS
+# Hitachi SDS (Reference: MK-SL-304-01, September 2024)
 hitachi_sds_version: "5.3.0"
 hitachi_array_id: "SDS-0001"
 hitachi_array_name: "Playground-SDS"
 
-# Storage Pools
-hitachi_replication_pool_name: "replication-pool"
-hitachi_replication_pool_size: 500  # GB
-hitachi_journal_pool_name: "journal-pool"
-hitachi_journal_pool_size: 50       # GB
+# Hitachi Helm Repository (Public, No Auth Required)
+hitachi_helm_repo_name: "hitachi"
+hitachi_helm_repo_url: "https://cdn.hitachivantara.com/charts/hitachi"
+hitachi_helm_chart: "vsp-one-sds-hspc"
+hitachi_helm_chart_version: "3.14.0"
 
-# Networking
-hitachi_vpc_cidr: "10.1.0.0/16"
-hitachi_subnet_cidr: "10.1.0.0/24"
-hitachi_enable_public_ip: true
+# SDS Block Connection (REQUIRED: Update with actual values from CloudFormation)
+hitachi_sds_management_ip: "10.1.0.50"  # UPDATE: Replace with actual SDS Block management IP
+hitachi_sds_port: 8443
+hitachi_sds_username: "admin"            # UPDATE: Replace with SDS Block admin username
+# hitachi_sds_password: "{{ vault_hitachi_sds_password }}"  # UPDATE: Store in Vault
 
-# CSI Driver
-hitachi_csi_version: "1.5.0"
-hitachi_csi_namespace: "hitachi-system"
-hitachi_csi_replicas: 2
+# Storage Pools (Must be created in SDS Block before use)
+hitachi_storage_pool_name: "replication-pool"
+hitachi_storage_pool_tier: "1"
 
-# Replication
-hitachi_async_replication_enabled: true
-hitachi_auto_resync: true
+# StorageClass Configuration
+hitachi_storage_class_name: "hitachi-sds"
+hitachi_storage_class_default: true
 
-# OCP
+# HSPC Operator Configuration
+hitachi_hspc_namespace: "hitachi-system"
+hitachi_hspc_replicas: 2
+hitachi_hspc_cpu_requests: "500m"
+hitachi_hspc_cpu_limits: "1000m"
+hitachi_hspc_memory_requests: "512Mi"
+hitachi_hspc_memory_limits: "1024Mi"
+
+# Multipath Configuration (iSCSI)
+hitachi_multipath_enabled: true
+hitachi_iscsi_enabled: true
+
+# OCP Configuration
 ocp_kubeconfig: ~/.kube/config
 ocp_namespace: hitachi-system
+
+# Pull Secrets
+# OpenShift pull secret is handled in group_vars/all
+# Hitachi Helm repo is public (no auth required)
+# For custom images, create docker-registry secret:
+# hitachi_image_pull_secret_name: "hitachi-registry-secret"

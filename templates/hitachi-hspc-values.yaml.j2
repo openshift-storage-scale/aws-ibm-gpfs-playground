@@ -1,0 +1,158 @@
+# Hitachi Storage Plug-in for Containers (HSPC) Helm Values
+# For use with: helm install/upgrade hitachi-sds-hspc hitachi/vsp-one-sds-hspc
+# Reference: https://docs.hitachivantara.com/r/en-us/hitachi-storage-plugin-containers
+
+---
+# Image Configuration
+image:
+  registry: docker.io
+  repository: hitachi/vsp-one-sds-hspc
+  tag: "3.14.0"
+  pullPolicy: IfNotPresent
+  # Uncomment if using private registry with authentication
+  # pullSecrets:
+  #   - name: hitachi-registry-secret
+
+# RBAC Configuration
+rbac:
+  create: true
+
+# Service Account Configuration
+serviceAccount:
+  create: true
+  name: vsp-one-sds-hspc
+
+# Resource Limits and Requests
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Node Selector (optional - schedule on specific nodes)
+nodeSelector: {}
+
+# Tolerations (optional - tolerate node taints)
+tolerations: []
+
+# Affinity (optional - pod affinity rules)
+affinity: {}
+
+# Storage Backend Configuration
+# These values connect HSPC to your Hitachi SDS Block storage
+sds:
+  # Array configuration
+  arrays:
+    - id: SDS-0001
+      name: Playground-SDS
+      # Management interface IP - UPDATE WITH ACTUAL SDS BLOCK IP
+      managementIP: "10.1.0.50"
+      port: 8443
+      # Secret containing credentials for SDS Block access
+      # Secret must be created in the same namespace:
+      # kubectl create secret generic sds-block-secret \
+      #   --from-literal=username=<admin-username> \
+      #   --from-literal=password=<admin-password>
+      secretName: sds-block-secret
+
+# Features
+features:
+  # Enable dynamic provisioning
+  dynamicProvisioning: true
+  # Enable volume expansion
+  expandVolumes: true
+  # Enable snapshot support
+  snapshotting: true
+  # Enable replication
+  replication: true
+
+# iSCSI Configuration
+iscsi:
+  enabled: true
+  multipath:
+    enabled: true
+    # Multipath configuration options
+    # Ensure multipath daemon is running on worker nodes
+    # Configure /etc/multipath.conf for Hitachi arrays
+
+# Monitoring and Logging
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false  # Set to true if using Prometheus
+    interval: 30s
+
+logging:
+  level: info  # Can be: debug, info, warn, error
+
+# Replication Configuration (if enabled)
+replication:
+  asyncEnabled: true
+  autoResync: true
+  # RPO and RTO targets (in seconds)
+  rpoTarget: 300
+  rtoTarget: 900
+
+# Default Storage Class
+# Set as default storage class for new PVCs
+defaultStorageClass: hitachi-sds
+
+# Security Context
+securityContext:
+  runAsNonRoot: false
+  # Adjust as needed for your security policy
+  # fsGroup: 1000
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Autoscaling (optional)
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Additional environment variables
+env: []
+# - name: CUSTOM_VAR
+#   value: "custom_value"
+
+# Additional volumes to mount
+extraVolumes: []
+# - name: config
+#   configMap:
+#     name: hspc-config
+
+extraVolumeMounts: []
+# - name: config
+#   mountPath: /etc/hspc/config
+
+# Labels for pod selection
+labels:
+  app: vsp-one-sds-hspc
+  managed-by: helm
+
+# Annotations for documentation
+annotations:
+  description: "Hitachi Storage Plug-in for Containers"
+  documentation: "https://docs.hitachivantara.com/r/en-us/hitachi-storage-plugin-containers"
+
+---
+# Notes:
+# 1. Update managementIP with your actual SDS Block management IP
+# 2. Create sds-block-secret with your SDS Block credentials:
+#    kubectl create secret generic sds-block-secret \
+#      --from-literal=username=<your-admin-user> \
+#      --from-literal=password=<your-admin-password> \
+#      -n hitachi-system
+# 3. Configure multipath on worker nodes for iSCSI access
+# 4. Ensure security groups allow ports: 443, 3260, 5696, 5697
+# 5. Monitor deployment status:
+#    kubectl get deployment -n hitachi-system
+#    kubectl logs -f deployment/vsp-one-sds-hspc -n hitachi-system

@@ -1,0 +1,437 @@
+---
+- name: Deploy Hitachi VSP One SDS Block on AWS
+  hosts: localhost
+  gather_facts: false
+  become: false
+  
+  vars:
+    # CloudFormation template location
+    cf_template_path: "{{ playbook_dir }}/../Temp/Hitachi/sds-block-cf-clean.yaml"
+    
+    # Stack configuration
+    sds_stack_name: "hitachi-sds-block-{{ ocp_cluster_name }}"
+    sds_instance_type: "m5.2xlarge"
+    sds_root_volume_size: 100
+    sds_data_volume_size: 500
+  
+  tasks:
+    # ======================================================================
+    # Phase 1: Pre-deployment Validation
+    # ======================================================================
+    - name: Validate CloudFormation template exists
+      tags:
+        - 1_validation
+      ansible.builtin.stat:
+        path: "{{ cf_template_path }}"
+      register: cf_template_stat
+      failed_when: not cf_template_stat.stat.exists
+
+    - name: Validate CloudFormation template syntax
+      tags:
+        - 1_validation
+      amazon.aws.cloudformation:
+        stack_name: "{{ sds_stack_name }}-validation"
+        state: absent
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+        template_url: "file://{{ cf_template_path }}"
+      check_mode: true
+      register: cf_validation
+      failed_when: false
+
+    - name: Check for existing EC2 KeyPair
+      tags:
+        - 1_validation
+      amazon.aws.ec2_key_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        names: "{{ aws_ec2_key_name }}"
+      register: ec2_keys
+      failed_when: false
+
+    - name: Verify AWS VPC exists
+      tags:
+        - 1_validation
+      amazon.aws.ec2_vpc_net_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        vpc_ids: "{{ aws_vpc_id }}"
+      register: vpc_info
+      failed_when: false
+
+    - name: Display VPC info
+      tags:
+        - 1_validation
+      ansible.builtin.debug:
+        msg: "VPC lookup result: {{ vpc_info }}"
+
+    - name: Display pre-deployment information
+      tags:
+        - 1_validation
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Hitachi VSP One SDS Block Deployment
+          ============================================================
+          
+          Stack Configuration:
+            Stack Name: {{ sds_stack_name }}
+            Region: {{ ocp_region }}
+            Instance Type: {{ sds_instance_type }}
+            Root Volume Size: {{ sds_root_volume_size }} GB
+            Data Volume Size: {{ sds_data_volume_size }} GB
+          
+          Network Configuration:
+            VPC ID: {{ aws_vpc_id }}
+            Key Pair: {{ aws_ec2_key_name }}
+          
+          CloudFormation Template: {{ cf_template_path }}
+          ============================================================
+
+    # ======================================================================
+    # Phase 2: Get Network Information
+    # ======================================================================
+    - name: Get available subnets in VPC
+      tags:
+        - 2_network
+      amazon.aws.ec2_vpc_subnet_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          vpc-id: "{{ aws_vpc_id }}"
+      register: vpc_subnets
+
+    - name: Display available subnets
+      tags:
+        - 2_network
+      ansible.builtin.debug:
+        msg: |
+          Available Subnets:
+          {% for subnet in vpc_subnets.subnets %}
+          - Subnet ID: {{ subnet.id }}
+            CIDR: {{ subnet.cidr_block }}
+            AZ: {{ subnet.availability_zone }}
+            Available IPs: {{ subnet.available_ip_address_count }}
+          {% endfor %}
+
+    - name: Select subnets for SDS Block (or use provided)
+      tags:
+        - 2_network
+      ansible.builtin.set_fact:
+        sds_control_subnet_id: "{{ sds_control_subnet_id | default(vpc_subnets.subnets[0].id) }}"
+        sds_data_subnet_id: "{{ sds_data_subnet_id | default(vpc_subnets.subnets[1].id if vpc_subnets.subnets | length > 1 else vpc_subnets.subnets[0].id) }}"
+
+    - name: Get subnet CIDR blocks
+      tags:
+        - 2_network
+      amazon.aws.ec2_vpc_subnet_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        subnet_ids:
+          - "{{ sds_control_subnet_id }}"
+          - "{{ sds_data_subnet_id }}"
+      register: selected_subnets
+
+    - name: Set subnet CIDR blocks
+      tags:
+        - 2_network
+      ansible.builtin.set_fact:
+        sds_control_subnet_cidr: "{{ selected_subnets.subnets[0].cidr_block }}"
+        sds_data_subnet_cidr: "{{ selected_subnets.subnets[1].cidr_block }}"
+
+    # ======================================================================
+    # Phase 3: Get SDS Block AMI
+    # ======================================================================
+    - name: Search for Hitachi SDS Block AMI
+      tags:
+        - 3_ami
+      amazon.aws.ec2_ami_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          name: "Hitachi-VSP-One-SDS-*"
+          state: available
+      register: sds_amis
+      failed_when: false
+
+    - name: Set SDS Block AMI ID (from Hitachi marketplace or use default)
+      tags:
+        - 3_ami
+      ansible.builtin.set_fact:
+        sds_ami_id: "{{ (sds_amis.images | sort(attribute='creation_date', reverse=true) | first).image_id if sds_amis.images else sds_ami_id_override | default('ami-07d9228dc6ef5347a') }}"
+        sds_ami_name: "{{ (sds_amis.images | sort(attribute='creation_date', reverse=true) | first).name if sds_amis.images else 'Amazon Linux 2 x86_64' }}"
+
+    - name: Display selected AMI
+      tags:
+        - 3_ami
+      ansible.builtin.debug:
+        msg: |
+          Selected AMI:
+            ID: {{ sds_ami_id }}
+            Name: {{ sds_ami_name }}
+            Note: Using default if Hitachi marketplace AMI not found
+
+    # ======================================================================
+    # Phase 4: Generate Secure SDS Block Password
+    # ======================================================================
+    - name: Generate secure password for SDS Block admin
+      tags:
+        - 4_security
+      ansible.builtin.set_fact:
+        sds_admin_password: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,punctuation length=16') }}"
+      when: sds_admin_password is not defined
+
+    - name: Save SDS Block credentials
+      tags:
+        - 4_security
+      ansible.builtin.copy:
+        content: |
+          # Hitachi SDS Block Credentials
+          # Generated: {{ now(utc=true).isoformat() }}
+          # Stack: {{ sds_stack_name }}
+          
+          SDS_ADMIN_PASSWORD="{{ sds_admin_password }}"
+          
+          # Store this securely in AWS Secrets Manager or HashiCorp Vault
+          # Do not commit to version control
+        dest: "{{ ocpfolder }}/sds-block-credentials.env"
+        mode: '0600'
+      register: creds_file
+
+    - name: Display credentials file location
+      tags:
+        - 4_security
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  SDS Block credentials saved to:
+          {{ creds_file.dest }}
+          
+          ⚠️  IMPORTANT: This file contains sensitive information
+          ⚠️  Store securely and do not commit to version control
+
+    # ======================================================================
+    # Phase 5: Create CloudFormation Stack
+    # ======================================================================
+    - name: Check if CloudFormation stack already exists
+      tags:
+        - 5_cloudformation
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ sds_stack_name }}"
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: cf_stack_info
+      ignore_errors: true
+
+    - name: Delete failed CloudFormation stack if in ROLLBACK_COMPLETE state
+      tags:
+        - 5_cloudformation
+      amazon.aws.cloudformation:
+        stack_name: "{{ sds_stack_name }}"
+        state: absent
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      when: 
+        - cf_stack_info.cloudformation is defined
+        - cf_stack_info.cloudformation[sds_stack_name] is defined
+        - cf_stack_info.cloudformation[sds_stack_name] | length > 0
+        - "'ROLLBACK_COMPLETE' in (cf_stack_info.cloudformation[sds_stack_name] | map(attribute='stack_status') | list)"
+      ignore_errors: true
+
+    - name: Wait for failed stack to be deleted
+      tags:
+        - 5_cloudformation
+      ansible.builtin.pause:
+        seconds: 5
+      when: cf_stack_info.changed
+
+    - name: Create or update SDS Block CloudFormation stack
+      tags:
+        - 5_cloudformation
+      amazon.aws.cloudformation:
+        stack_name: "{{ sds_stack_name }}"
+        state: present
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+        template_body: "{{ lookup('file', cf_template_path) }}"
+        template_parameters:
+          KeyName: "{{ aws_ec2_key_name }}"
+          InstanceType: "{{ sds_instance_type }}"
+          VpcId: "{{ aws_vpc_id }}"
+          ControlSubnetId: "{{ sds_control_subnet_id }}"
+          DataSubnetId: "{{ sds_data_subnet_id }}"
+          ControlSubnetCidrBlock: "{{ sds_control_subnet_cidr }}"
+          DataSubnetCidrBlock: "{{ sds_data_subnet_cidr }}"
+          SDSBlockImageId: "{{ sds_ami_id }}"
+          SDSBlockRootVolumeSize: "{{ sds_root_volume_size }}"
+          SDSBlockDataVolumeSize: "{{ sds_data_volume_size }}"
+          SDSBlockAdminPassword: "{{ sds_admin_password }}"
+          Environment: "{{ environment_tag | default('development') }}"
+          Owner: "{{ ansible_user | default(ansible_env.USER | default('automation')) }}"
+        create_timeout: 600
+        tags:
+          Name: "{{ sds_stack_name }}"
+          CreatedBy: Ansible
+          ManagedBy: openshift-storage-scale
+      register: cf_stack_result
+      timeout: 1200
+
+    - name: Display CloudFormation stack creation result
+      tags:
+        - 5_cloudformation
+      ansible.builtin.debug:
+        msg: |
+          CloudFormation stack operation completed:
+          Stack Name: {{ sds_stack_name }}
+          Stack Status: {{ cf_stack_result.stack_resources[0].status if cf_stack_result.stack_resources is defined else 'Unknown' }}
+          Timestamp: {{ cf_stack_result.stack_resources[0].last_updated_time if cf_stack_result.stack_resources is defined else 'Unknown' }}
+
+    # ======================================================================
+    # Phase 6: Wait for Stack Completion
+    # ======================================================================
+    - name: Wait for CloudFormation stack to complete
+      tags:
+        - 6_wait
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ sds_stack_name }}"
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: cf_stack_status
+      until: cf_stack_status.cloudformation[sds_stack_name][0].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
+      retries: 120
+      delay: 10
+
+    - name: Extract CloudFormation outputs
+      tags:
+        - 6_wait
+      ansible.builtin.set_fact:
+        sds_outputs: "{{ cf_stack_status.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
+
+    # ======================================================================
+    # Phase 7: Retrieve SDS Block Access Information
+    # ======================================================================
+    - name: Get EC2 instance details
+      tags:
+        - 7_info
+      amazon.aws.ec2_instance_info:
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+        filters:
+          "tag:Name": "hitachi-sds-block"
+          instance-state-name: running
+      register: sds_instances
+
+    - name: Wait for SDS Block instance to boot and initialize
+      tags:
+        - 7_info
+      ansible.builtin.wait_for:
+        host: "{{ sds_outputs.SDSBlockManagementEIP }}"
+        port: 8443
+        delay: 30
+        timeout: 600
+        state: started
+      register: sds_boot_wait
+
+    - name: Display SDS Block Access Information
+      tags:
+        - 7_info
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Hitachi VSP One SDS Block Deployed Successfully!
+          ============================================================
+          
+          Instance Information:
+            Instance ID: {{ sds_outputs.SDSBlockInstanceId }}
+            Instance Type: {{ sds_instance_type }}
+            Region: {{ ocp_region }}
+            Status: Running
+          
+          Network Configuration:
+            Management IP (Private): {{ sds_outputs.SDSBlockManagementIP }}
+            Management IP (Public/EIP): {{ sds_outputs.SDSBlockManagementEIP }}
+            Data IP: {{ sds_outputs.SDSBlockDataIP }}
+            Management SG: {{ sds_outputs.ManagementSecurityGroupId }}
+            Data SG: {{ sds_outputs.DataSecurityGroupId }}
+          
+          Access Information:
+            Web Console: https://{{ sds_outputs.SDSBlockManagementEIP }}:8443
+            Username: admin
+            Password: *** (stored in {{ creds_file.dest }})
+          
+          Storage Configuration:
+            Root Volume: {{ sds_root_volume_size }} GB
+            Data Volume: {{ sds_data_volume_size }} GB
+          
+          CloudWatch Logs:
+            Log Group: {{ sds_outputs.CloudWatchLogGroup }}
+          
+          ============================================================
+          
+          Next Steps:
+          1. Access the SDS Block web console
+          2. Configure storage pools
+          3. Set up replication (if needed)
+          4. Create iSCSI port groups
+          5. Update OCP Hitachi secrets with this information
+          6. Deploy HSPC operator to OCP
+          
+          ============================================================
+
+    # ======================================================================
+    # Phase 8: Save Configuration for OCP Integration
+    # ======================================================================
+    - name: Create SDS Block configuration for OCP
+      tags:
+        - 8_config
+      ansible.builtin.copy:
+        content: |
+          # Hitachi SDS Block Configuration
+          # Auto-generated: {{ now(utc=true).isoformat() }}
+          # Stack: {{ sds_stack_name }}
+          
+          # Access Information
+          SDS_MANAGEMENT_IP={{ sds_outputs.SDSBlockManagementIP }}
+          SDS_MANAGEMENT_EIP={{ sds_outputs.SDSBlockManagementEIP }}
+          SDS_DATA_IP={{ sds_outputs.SDSBlockDataIP }}
+          SDS_MANAGEMENT_SG={{ sds_outputs.ManagementSecurityGroupId }}
+          SDS_DATA_SG={{ sds_outputs.DataSecurityGroupId }}
+          
+          # Instance Information
+          SDS_INSTANCE_ID={{ sds_outputs.SDSBlockInstanceId }}
+          SDS_INSTANCE_TYPE={{ sds_instance_type }}
+          SDS_REGION={{ ocp_region }}
+          
+          # CloudFormation Stack
+          SDS_STACK_NAME={{ sds_stack_name }}
+          SDS_STACK_ID={{ cf_stack_result.stack_id }}
+          
+          # Web Console
+          SDS_CONSOLE_URL=https://{{ sds_outputs.SDSBlockManagementEIP }}:8443
+          SDS_ADMIN_USERNAME=admin
+          
+          # iSCSI Configuration
+          SDS_ISCSI_PORT=3260
+          SDS_ISCSI_TARGET_IP={{ sds_outputs.SDSBlockDataIP }}
+          
+          # For OCP Kubernetes Secret
+          HITACHI_SDS_MANAGEMENT_IP={{ sds_outputs.SDSBlockManagementIP }}
+          HITACHI_SDS_PORT=8443
+          HITACHI_SDS_USERNAME=admin
+          
+        dest: "{{ ocpfolder }}/sds-block-config.env"
+        mode: '0644'
+      register: config_file
+
+    - name: Display configuration file location
+      tags:
+        - 8_config
+      ansible.builtin.debug:
+        msg: |
+          SDS Block configuration saved to:
+          {{ config_file.dest }}
+          
+          Use this file to configure OCP Hitachi secrets:
+          oc create secret generic hitachi-sds-secret \
+            --from-env-file={{ config_file.dest }} \
+            -n hitachi-system
+

@@ -1,0 +1,197 @@
+# Hitachi SDS Deployment Scripts
+
+This directory contains scripts for deploying and monitoring Hitachi VSP One SDS Block infrastructure on AWS and operators on OpenShift.
+
+## Directory Structure
+
+```
+scripts/
+├── deployment/          # Deployment automation scripts
+│   ├── deploy-sds-block.sh              # Deploy SDS Block EC2 infrastructure
+│   └── prepare-hitachi-namespace.sh     # Prepare Kubernetes namespaces
+└── monitoring/          # Monitoring and diagnostics scripts
+    ├── monitor-hitachi-deployment.sh    # One-time status check
+    └── watch-hitachi-deployment.sh      # Continuous monitoring
+```
+
+## Quick Start
+
+### 1. Deploy SDS Block Infrastructure
+
+Deploy the Hitachi SDS Block EC2 instance on AWS:
+
+```bash
+./scripts/deployment/deploy-sds-block.sh eu-north-1 gpfs-levanon-c4qpp
+```
+
+**What it does:**
+- Verifies AWS credentials and Kubernetes connectivity
+- Creates EC2 key pair if needed
+- Deploys CloudFormation stack with:
+  - EC2 instance (m5.2xlarge with Ubuntu)
+  - Network interfaces (management + data)
+  - Security groups (ports 8443, 3260)
+  - EBS volumes (100GB root + 500GB data)
+  - IAM role and CloudWatch monitoring
+
+**Expected output:**
+- New CloudFormation stack `hitachi-sds-block-gpfs-levanon-c4qpp`
+- Running EC2 instance with public IP
+
+### 2. Monitor Infrastructure Deployment
+
+While the deployment is running or after it completes, check the status:
+
+```bash
+# One-time status check
+./scripts/monitoring/monitor-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+
+# Continuous monitoring (updates every 30 seconds)
+./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+```
+
+**What it shows:**
+- ✓ CloudFormation stack status
+- ✓ EC2 instance details (IP addresses, state)
+- ✓ Kubernetes cluster connectivity
+- ✓ Hitachi namespaces and pod status
+- ✓ Operator deployments
+- ✓ Web console accessibility (port 8443)
+
+### 3. Deploy Hitachi Operators to Kubernetes
+
+After the EC2 infrastructure is ready, deploy the Hitachi SDS operators to your OpenShift cluster:
+
+```bash
+# Prepare namespaces
+./scripts/deployment/prepare-hitachi-namespace.sh
+
+# Install operators (uses make target)
+make install-hitachi
+```
+
+## Usage Examples
+
+### Complete deployment workflow:
+
+```bash
+# Terminal 1: Start deployment
+./scripts/deployment/deploy-sds-block.sh eu-north-1 gpfs-levanon-c4qpp
+
+# Terminal 2: Monitor progress in real-time
+./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+
+# Once EC2 is running, deploy operators
+./scripts/deployment/prepare-hitachi-namespace.sh
+make install-hitachi
+
+# Keep monitoring the full stack
+./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+```
+
+### Check specific resources:
+
+```bash
+# Just check AWS infrastructure
+./scripts/monitoring/monitor-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp | head -50
+
+# Just check Kubernetes resources
+export KUBECONFIG=/path/to/kubeconfig
+kubectl get pods -n hitachi-sds
+kubectl get pods -n hitachi-system
+kubectl describe deployments -n hitachi-sds
+
+# Check CloudFormation events
+aws cloudformation describe-stack-events \
+  --stack-name hitachi-sds-block-gpfs-levanon-c4qpp \
+  --region eu-north-1 \
+  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[LogicalResourceId,ResourceStatusReason]' \
+  --output table
+```
+
+## Environment Variables
+
+All scripts respect the following environment variables:
+
+```bash
+# Kubernetes configuration
+export KUBECONFIG=/home/nlevanon/aws-gpfs-playground/ocp_install_files/auth/kubeconfig
+
+# AWS configuration (uses default profile)
+export AWS_PROFILE=default
+export AWS_REGION=eu-north-1
+
+# Custom configuration for monitoring scripts
+export MONITOR_INTERVAL=30  # Check every 30 seconds
+```
+
+## Logs and Outputs
+
+Deployment logs are saved to:
+```
+Temp/deploy-sds-20251209_HHMMSS.log
+Temp/sds-deploy-20251209_HHMMSS.log
+```
+
+Credentials saved to:
+```
+~/aws-gpfs-playground/ocp_install_files/sds-block-credentials.env
+```
+
+CloudFormation stack details:
+```bash
+aws cloudformation describe-stacks \
+  --stack-name hitachi-sds-block-gpfs-levanon-c4qpp \
+  --region eu-north-1 \
+  --query 'Stacks[0].Outputs' \
+  --output table
+```
+
+## Troubleshooting
+
+### Deployment fails with "Unresolved resource dependencies"
+- Check the CloudFormation template for parameter mismatches
+- Verify all AMI IDs exist in the target region
+- Run: `aws cloudformation validate-template --template-body file://Temp/Hitachi/sds-block-cf-clean.yaml --region eu-north-1`
+
+### EC2 instance doesn't boot
+- Check instance logs: `aws ec2 get-console-output --instance-id <id> --region eu-north-1`
+- Verify IAM role permissions
+- Check security group rules allow outbound traffic
+
+### No pods in hitachi-sds namespace
+- Ensure EC2 instance is accessible from the cluster
+- Check if operators were installed: `kubectl get pods -n hitachi-system`
+- Verify network connectivity between EC2 and cluster
+
+### Monitoring script shows no pods
+- Operators may still be installing
+- Check Helm release: `helm list -A`
+- View deployment logs: `kubectl logs -n hitachi-system -l app=hitachi-operator`
+
+## Related Commands
+
+```bash
+# View EC2 instances
+aws ec2 describe-instances --region eu-north-1 --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,PublicIpAddress]' --output table
+
+# Connect to EC2 instance
+ssh -i /tmp/nlevanon-key.pem ec2-user@<PUBLIC_IP>
+
+# Delete infrastructure (caution!)
+aws cloudformation delete-stack --stack-name hitachi-sds-block-gpfs-levanon-c4qpp --region eu-north-1
+
+# View Kubernetes cluster info
+kubectl cluster-info
+kubectl get nodes
+kubectl get all -n hitachi-sds
+```
+
+## Support
+
+For issues or questions:
+1. Check the logs: `Temp/*.log`
+2. Run the monitoring script for current status
+3. Check AWS CloudFormation events
+4. Verify Kubernetes cluster connectivity
+5. Review operator deployment logs in hitachi-system namespace

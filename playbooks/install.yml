@@ -1,5 +1,5 @@
 ---
-- name: Playbook to set up the Openshift Cluster
+- name: Playbook to set up the Openshift Cluster with IBM GPFS
   hosts: localhost
   gather_facts: false
   become: false
@@ -7,223 +7,32 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-    - name: Print AWS infos
-      tags:
-        - 1_ocp_install
+    - name: Print installation info
       ansible.builtin.debug:
-        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
+        msg: |
+          ============================================================
+          Installing AWS OCP Cluster with IBM GPFS
+          ============================================================
+          OCP Configuration:
+            Region: {{ ocp_region }}
+            Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }}
+            Workers: {{ ocp_worker_count }} x {{ ocp_worker_type }}
+            AWS Profile: {{ aws_profile }}
+          
+          GPFS Configuration:
+            Operator: IBM Spectrum Scale Container Native
+            Version: {{ gpfs_version | default('latest') }}
+          ============================================================
 
-    - name: Get AWS caller identity for Owner tag
-      tags:
-        - 1_ocp_install
-      amazon.aws.aws_caller_info:
-        profile: "{{ aws_profile }}"
-      register: aws_caller_info
+    # ======================================================================
+    # Phase 1: Common OCP Installation (shared with install-hitachi.yml)
+    # ======================================================================
+    - name: Include common OCP installation tasks
+      ansible.builtin.include_tasks: _ocp-install-common.yml
 
-    - name: Set OCP owner from AWS user
-      tags:
-        - 1_ocp_install
-      ansible.builtin.set_fact:
-        ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
-
-    - name: Print Owner info
-      tags:
-        - 1_ocp_install
-      ansible.builtin.debug:
-        msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"
-
-    - name: Verify htpasswd exists
-      ansible.builtin.command:
-        cmd: which htpasswd
-      register: htpasswd_check
-      failed_when: htpasswd_check.rc != 0
-      tags:
-        - 1_ocp_install
-
-    - name: Check if the ibm-entitlement file exists
-      tags:
-        - 1_ocp_install
-      ansible.builtin.stat:
-        path: "{{ ibmentitlementkeyfile }}"
-      register: ibmentitlementkeyfile_stat
-
-    - name: Fail if ibm-entitlement file does not exist
-      tags:
-        - 1_ocp_install
-      ansible.builtin.fail:
-        msg: "The ibm-entitlement file {{ ibmentitlementkeyfile }} does not exist!"
-      when: not ibmentitlementkeyfile_stat.stat.exists
-
-    - name: Create working folder
-      tags:
-        - 1_ocp_install
-      ansible.builtin.file:
-        path: "{{ ocpfolder }}"
-        state: directory
-        recurse: true
-
-    - name: Does cluster metadata.json exist
-      tags:
-        - 1_ocp_install
-      ansible.builtin.stat:
-        path: "{{ ocpfolder }}/metadata.json"
-      register: metadata_json_file
-
-    - name: Template OCP install file
-      tags:
-        - 1_ocp_install
-      ansible.builtin.template:
-        src: ../templates/full-cluster-install-config.j2.yaml
-        dest: "{{ ocpfolder }}/install-config.yaml"
-      when: not metadata_json_file.stat.exists
-
-    - name: Install ocp cluster
-      tags:
-        - 1_ocp_install
-      when: not metadata_json_file.stat.exists
-      block:
-        - name: Run openshift-install
-          ansible.builtin.shell: |
-            set -ex
-            id
-            {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. 2>&1 | tee {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
-          args:
-            chdir: "{{ ocpfolder }}"
-          environment:
-            AWS_PROFILE: "{{ aws_profile }}"
-          register: openshift_install_result
-      rescue:
-        - name: Display openshift-install error
-          ansible.builtin.debug:
-            msg:
-              - "=========================================="
-              - "ERROR: openshift-install failed!"
-              - "=========================================="
-              - "Last lines from openshift-install output:"
-
-        - name: Print error details (captured output)
-          ansible.builtin.debug:
-            msg: "{{ combined_output[-20:] if combined_output | length > 0 else ['No output captured'] }}"
-          vars:
-            combined_output: "{{ (openshift_install_result.stderr_lines | default([])) + (openshift_install_result.stdout_lines | default([])) }}"
-
-        - name: Provide helpful information
-          ansible.builtin.debug:
-            msg:
-              - "Full log available at: {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log"
-              - "Common issues:"
-              - "  - Cluster name must be lowercase (a-z, 0-9, -, .)"
-              - "  - Check AWS credentials and permissions"
-              - "  - Verify install-config.yaml is valid"
-
-        - name: Fail the playbook
-          ansible.builtin.fail:
-            msg: "openshift-install failed. See error details above."
-
-    - name: Does cluster kubeconfig exist
-      tags:
-        - 1_ocp_install
-      ansible.builtin.stat:
-        path: "{{ ocpfolder }}/auth/kubeconfig"
-      register: kubeconfig_file
-
-    - name: Fail here there is no kubeconfig file
-      tags:
-        - 1_ocp_install
-      ansible.builtin.fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
-      when: not kubeconfig_file.stat.exists
-
-    - name: Set kubeadmin password fact
-      tags:
-        - 1_ocp_install
-      when: kubeadmin_pass is defined and kubeadmin_pass | length > 0
-      block:
-        - name: Encrypt kubeadmin password
-          ansible.builtin.shell: |
-            set -o pipefail
-            echo -n "{{ kubeadmin_pass }}" | htpasswd -i -B -n admin | awk -F ":" '{ print $2}' | base64 -w0
-          register:
-            hashed_password_out
-        - name: Set hashed password fact
-          tags:
-            - 1_ocp_install
-          ansible.builtin.set_fact:
-            hashed_password: "{{ hashed_password_out.stdout }}"
-
-        - name: Set kubeadmin password
-          tags:
-            - 1_ocp_install
-          ansible.builtin.shell: |
-            set -e
-            chmod 0600 {{ kubeconfig }}
-            export KUBECONFIG={{ kubeconfig }}
-            {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'
-
-    - name: Create gpfs folder
-      tags:
-        - 1_ocp_install
-      ansible.builtin.file:
-        path: "{{ gpfsfolder }}"
-        state: directory
-        recurse: true
-
-    - name: Template mco file
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.template:
-        src: ../templates/mco.yaml
-        dest: "{{ gpfsfolder }}/mco.yaml"
-
-    - name: Template mco file
-      tags:
-        - 1_ocp_install_mco
-      ansible.builtin.shell: |
-        {{ butane_bin }} "{{ gpfsfolder }}/mco.yaml" -o "{{ gpfsfolder }}/99-mco-butaned.yaml"
-
-    # We apply the MCO template right away as it makes for less errors
-    # - name: Apply MCO template
-    #   tags:
-    #     - 1_ocp_install_mco
-    #   ansible.builtin.shell: |
-    #     set -ex
-    #     export KUBECONFIG={{ kubeconfig }}
-    #     {{ oc_bin }} apply -f {{ gpfsfolder }}/99-mco-butaned.yaml
-
-    # FIXME(bandini): Sleep here for a bit so we're sure it is started
-    # later we should wait for the mcp's to go in updating status and then
-    # wait for the finished condition
-    # - name: Wait a bit for MCP to start
-    #   tags:
-    #     - 1_ocp_install_mco
-    #   ansible.builtin.pause:
-    #     minutes: 1
-    #
-    # - name: Speed up MCO
-    #   tags:
-    #     - 1_ocp_install_mco
-    #   ansible.builtin.shell: |
-    #     set -ex
-    #     export KUBECONFIG={{ kubeconfig }}
-    #     {{ oc_bin }} patch mcp worker --type merge --patch '{"spec": {"maxUnavailable": 2}}'
-    #
-    # - name: Wait for MCP to settle
-    #   tags:
-    #     - 1_ocp_install_mco
-    #   ansible.builtin.shell: |
-    #     set -ex
-    #     export KUBECONFIG={{ kubeconfig }}
-    #     if [ $({{ oc_bin }} get mcp/master -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/master -o jsonpath='{.status.machineCount}') ]; then
-    #       exit 1
-    #     fi
-    #     if [ $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.readyMachineCount}') != $({{ oc_bin }} get mcp/worker -o jsonpath='{.status.machineCount}') ]; then
-    #       exit 1
-    #     fi
-    #   retries: 40
-    #   delay: 90
-    #   register: mcp_ready
-    #   until: mcp_ready is not failed
-
-    # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
+    # ======================================================================
+    # Phase 2: AWS Infrastructure Setup (GPFS-specific ports and storage)
+    # ======================================================================
     - name: Gather security group info for workers
       tags:
         - 2_aws
@@ -249,6 +58,7 @@
         sg_worker_name: "{{ sg_info.security_groups[0].group_name }}"
         sg_worker_description: "{{ sg_info.security_groups[0].description }}"
 
+    # See https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=aws-red-hat-openshift-configuration#authorize-rosa-worker-security-group-to-allow-ibm-storage-scale-container-native-ports
     - name: Open up default security groups so gpfs can work in AWS
       tags:
         - 2_aws
@@ -267,6 +77,9 @@
             rule_desc: GPFS ports
         purge_rules: false
 
+    # ======================================================================
+    # Phase 3: EBS Storage Setup (GPFS-specific)
+    # ======================================================================
     # FIXME(bandini): this will need to be more robust
     - name: Find OpenShift EC2 Instances
       tags:
@@ -342,10 +155,20 @@
       loop: "{{ worker_ec2_ids }}"
       when: ebs_volume_two.volume_id is defined and baremetal_env | bool
 
+    # ======================================================================
+    # Phase 4: GPFS Installation
+    # ======================================================================
     # Installs GPFS with the openshift-storage-scale operator
     - name: Install gpfs bits
+      tags:
+        - 4_gpfs_install
       ansible.builtin.import_tasks: operator-install.yml
 
+    # ======================================================================
+    # Phase 5: GPFS Configuration
+    # ======================================================================
     # Creates localdisk + filesystem + test environment
     - name: Setup gpfs bits
+      tags:
+        - 5_gpfs_config
       ansible.builtin.import_tasks: gpfs-setup.yml

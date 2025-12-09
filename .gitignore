@@ -6,3 +6,4 @@ infra
 .vscode/
 .envrc
 Temp/
+reports/

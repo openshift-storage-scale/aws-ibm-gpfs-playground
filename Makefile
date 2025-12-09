@@ -30,6 +30,21 @@ install: ## Install an OCP cluster on AWS using the ibm-fusion-access operator a
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/install.yml
 	-@notify.sh "AWS install finished"
 
+.PHONY: install-hitachi
+install-hitachi: ## Install an OCP cluster on AWS and deploy Hitachi VSP One SDS on top
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/install-hitachi.yml
+	-@notify.sh "AWS OCP + Hitachi SDS install finished"
+
+.PHONY: sds-deploy
+sds-deploy: ## Deploy Hitachi VSP One SDS Block on AWS (standalone)
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/sds-block-deploy.yml
+	-@notify.sh "Hitachi SDS Block deployment finished"
+
+.PHONY: install-hitachi-with-sds
+install-hitachi-with-sds: ## Install OCP cluster and automatically deploy Hitachi SDS Block (complete stack)
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) -e "deploy_sds_block=true" $(EXTRA_VARS) playbooks/install-hitachi.yml
+	-@notify.sh "AWS OCP + Hitachi SDS Block deployment finished"
+
 .PHONY: virt
 virt: ## Configures the virt bits (only for BAREMETAL)
 	@if [ "$(BAREMETAL)" = "false" ]; then echo "Error, virt is only for baremetal environments"; exit 1; fi
