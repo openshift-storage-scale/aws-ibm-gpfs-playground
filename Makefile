@@ -92,6 +92,9 @@ ebs-add: ## Adds a new EBS volume via ebs-add.yml.
 ebs-remove: ## Removes an existing EBS volume via ebs-remove.yml.
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ebs-remove.yml
 
+##@ Hitachi SDS Targets
+-include Makefile.hitachi
+
 ##@ CI / Linter tasks
 .PHONY: lint
 lint: ## Run ansible-lint on the codebase

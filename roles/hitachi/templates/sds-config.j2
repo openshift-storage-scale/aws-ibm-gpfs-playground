@@ -1,0 +1,15 @@
+[hitachi_sds]
+array_id = {{ hitachi_array_id }}
+array_name = {{ hitachi_array_name }}
+version = {{ hitachi_sds_version }}
+
+[paths]
+data_pool_path = /data
+journal_pool_path = /journal
+
+[replication]
+enabled = {{ hitachi_async_replication_enabled }}
+auto_resync = {{ hitachi_auto_resync }}
+
+[networking]
+cluster_network = {{ hitachi_vpc_cidr }}

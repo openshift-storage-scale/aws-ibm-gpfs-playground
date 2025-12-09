@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hitachi-sample-pvc
+  namespace: default
+  labels:
+    app: hitachi-demo
+    storage: hitachi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hitachi-storage
+  resources:
+    requests:
+      storage: 20Gi

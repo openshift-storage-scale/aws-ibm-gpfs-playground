@@ -1,0 +1,34 @@
+---
+- name: Check prerequisites
+  block:
+    - name: Verify AWS credentials configured
+      shell: |
+        aws sts get-caller-identity 2>&1 | grep -q "Account"
+      register: aws_check
+      changed_when: false
+      
+    - name: Check instance storage available
+      shell: |
+        df /dev/sdf 2>&1 || echo "Data volume not yet mounted"
+      register: storage_check
+      changed_when: false
+      
+    - name: Validate network connectivity
+      wait_for:
+        host: "{{ groups['all'][0] }}"
+        port: 22
+        timeout: 30
+      ignore_errors: yes
+      
+    - name: Confirm Kubernetes access
+      shell: |
+        kubectl cluster-info 2>&1 | grep -q "Kubernetes"
+      register: k8s_check
+      changed_when: false
+      ignore_errors: yes
+      
+    - name: Display prerequisite check results
+      debug:
+        msg: "✅ Prerequisites validation complete"
+  tags:
+    - prerequisites

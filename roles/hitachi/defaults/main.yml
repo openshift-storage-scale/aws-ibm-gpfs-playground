@@ -1,0 +1,13 @@
+---
+# Hitachi SDS defaults
+hitachi_sds_version: "5.3.0"
+hitachi_array_id: "SDS-0001"
+hitachi_array_name: "Playground-SDS"
+hitachi_csi_version: "1.5.0"
+hitachi_csi_namespace: "hitachi-system"
+hitachi_csi_replicas: 2
+hitachi_async_replication_enabled: true
+hitachi_auto_resync: true
+hitachi_replication_pool_name: "replication-pool"
+hitachi_journal_pool_name: "journal-pool"
+hitachi_vpc_cidr: "10.1.0.0/16"

@@ -1,0 +1,38 @@
+# Hitachi VSP One SDS Configuration
+
+# AWS Infrastructure
+aws_region: us-east-1
+aws_instance_type: m5.2xlarge
+hitachi_node_count: 3
+hitachi_root_volume_size: 100  # GB
+hitachi_data_volume_size: 500   # GB per node
+hitachi_journal_volume_size: 50  # GB per node
+
+# Hitachi SDS
+hitachi_sds_version: "5.3.0"
+hitachi_array_id: "SDS-0001"
+hitachi_array_name: "Playground-SDS"
+
+# Storage Pools
+hitachi_replication_pool_name: "replication-pool"
+hitachi_replication_pool_size: 500  # GB
+hitachi_journal_pool_name: "journal-pool"
+hitachi_journal_pool_size: 50       # GB
+
+# Networking
+hitachi_vpc_cidr: "10.1.0.0/16"
+hitachi_subnet_cidr: "10.1.0.0/24"
+hitachi_enable_public_ip: true
+
+# CSI Driver
+hitachi_csi_version: "1.5.0"
+hitachi_csi_namespace: "hitachi-system"
+hitachi_csi_replicas: 2
+
+# Replication
+hitachi_async_replication_enabled: true
+hitachi_auto_resync: true
+
+# OCP
+ocp_kubeconfig: ~/.kube/config
+ocp_namespace: hitachi-system

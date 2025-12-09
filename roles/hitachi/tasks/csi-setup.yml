@@ -1,0 +1,47 @@
+---
+- name: Setup Hitachi CSI driver
+  block:
+    - name: Add Hitachi Helm repository
+      shell: |
+        helm repo add hitachi https://hitachi.github.io/hcp-helm-repo/ || true
+        helm repo update
+      changed_when: false
+      
+    - name: Create CSI namespace
+      kubernetes.core.k8s:
+        name: "{{ hitachi_csi_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        
+    - name: Template Helm values for CSI driver
+      template:
+        src: csi-values.j2
+        dest: /tmp/csi-values.yaml
+        
+    - name: Install Hitachi CSI driver using Helm
+      shell: |
+        helm install hitachi-csi hitachi/hitachi-csi \
+          -n {{ hitachi_csi_namespace }} \
+          -f /tmp/csi-values.yaml \
+          --version {{ hitachi_csi_version }} \
+          || echo "CSI driver already installed"
+      changed_when: false
+      ignore_errors: yes
+      
+    - name: Wait for CSI driver to be ready
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        name: hitachi-csi-controller
+        namespace: "{{ hitachi_csi_namespace }}"
+      register: csi_status
+      until: csi_status.resources | length > 0 and csi_status.resources[0].status.readyReplicas | default(0) > 0
+      retries: 30
+      delay: 10
+      ignore_errors: yes
+      
+    - name: Display CSI setup complete
+      debug:
+        msg: "✅ Hitachi CSI driver setup complete"
+  tags:
+    - csi-setup

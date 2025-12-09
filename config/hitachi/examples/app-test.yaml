@@ -1,0 +1,40 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hitachi-test-app
+  namespace: default
+  labels:
+    app: hitachi-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hitachi-demo
+  template:
+    metadata:
+      labels:
+        app: hitachi-demo
+        storage: hitachi
+    spec:
+      containers:
+      - name: test-app
+        image: busybox:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Hitachi SDS Storage Test Application"
+            while true; do
+              echo "$(date): Writing test data..."
+              echo "Test data - $(date)" >> /data/test.log
+              sleep 60
+            done
+        volumeMounts:
+        - name: hitachi-storage
+          mountPath: /data
+      volumes:
+      - name: hitachi-storage
+        persistentVolumeClaim:
+          claimName: hitachi-sample-pvc
+      restartPolicy: Always

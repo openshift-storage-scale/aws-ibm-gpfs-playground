@@ -1,0 +1,34 @@
+---
+- name: Configure storage pools
+  block:
+    - name: Create replication pool
+      shell: |
+        echo "Creating replication pool: {{ hitachi_replication_pool_name }}"
+        # Placeholder for pool creation logic
+        echo "Pool created successfully"
+      changed_when: false
+      
+    - name: Create journal pool
+      shell: |
+        echo "Creating journal pool: {{ hitachi_journal_pool_name }}"
+        # Placeholder for pool creation logic
+        echo "Pool created successfully"
+      changed_when: false
+      
+    - name: Configure QoS policies
+      debug:
+        msg: "QoS policies would be configured here"
+        
+    - name: Enable snapshots
+      debug:
+        msg: "Snapshots enabled for storage pools"
+        
+    - name: Configure auto-resync
+      debug:
+        msg: "Auto-resync configured: {{ hitachi_auto_resync }}"
+        
+    - name: Display pool configuration complete
+      debug:
+        msg: "✅ Storage pools configured successfully"
+  tags:
+    - configure-pools

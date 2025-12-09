@@ -1,0 +1,32 @@
+replicaCount: {{ hitachi_csi_replicas }}
+
+image:
+  repository: hitachi/hitachi-csi-driver
+  tag: "{{ hitachi_csi_version }}"
+  pullPolicy: IfNotPresent
+
+storageClass:
+  enabled: true
+  name: hitachi-storage
+  provisioner: hitachi-csi-driver
+  parameters:
+    pool: {{ hitachi_replication_pool_name }}
+
+volumeReplication:
+  enabled: true
+  mode: async
+  rpo: 60
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

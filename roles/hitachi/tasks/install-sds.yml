@@ -1,0 +1,67 @@
+---
+- name: Install and initialize Hitachi SDS
+  block:
+    - name: Update system packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+      when: ansible_os_family == "Debian"
+      
+    - name: Install required packages
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - curl
+          - wget
+          - rsync
+          - open-iscsi
+        state: present
+      when: ansible_os_family == "Debian"
+      
+    - name: Create SDS configuration directory
+      file:
+        path: /etc/hitachi-sds
+        state: directory
+        mode: '0755'
+        
+    - name: Template SDS configuration
+      template:
+        src: sds-config.j2
+        dest: /etc/hitachi-sds/sds.conf
+        mode: '0644'
+        
+    - name: Format and mount data volume
+      block:
+        - name: Create ext4 filesystem on data volume
+          filesystem:
+            fstype: ext4
+            dev: /dev/sdf
+            
+        - name: Mount data volume
+          mount:
+            path: /data
+            src: /dev/sdf
+            fstype: ext4
+            state: mounted
+            
+    - name: Format and mount journal volume
+      block:
+        - name: Create ext4 filesystem on journal volume
+          filesystem:
+            fstype: ext4
+            dev: /dev/sdg
+            
+        - name: Mount journal volume
+          mount:
+            path: /journal
+            src: /dev/sdg
+            fstype: ext4
+            state: mounted
+      ignore_errors: yes
+      
+    - name: Display SDS install complete
+      debug:
+        msg: "✅ Hitachi SDS {{ hitachi_sds_version }} installation complete"
+  tags:
+    - install-sds

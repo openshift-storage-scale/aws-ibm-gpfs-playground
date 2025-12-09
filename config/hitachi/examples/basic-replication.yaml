@@ -1,0 +1,18 @@
+---
+apiVersion: replication.storage.openshift.io/v1alpha1
+kind: VolumeReplication
+metadata:
+  name: hitachi-sample-replication
+  namespace: default
+  labels:
+    app: hitachi-demo
+spec:
+  volumeReplicationClass: hitachi-async
+  replicationState: primary
+  dataSource:
+    kind: PersistentVolumeClaim
+    name: hitachi-sample-pvc
+  parameters:
+    remoteArrayId: "SDS-0002"
+    remotePoolId: "replication-pool-02"
+    schedule: "@hourly"

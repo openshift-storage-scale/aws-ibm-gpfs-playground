@@ -1,0 +1,7 @@
+---
+- name: Restart SDS services
+  service:
+    name: hitachi-sds
+    state: restarted
+  listen: "restart sds"
+  ignore_errors: yes

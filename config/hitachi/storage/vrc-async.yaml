@@ -1,0 +1,29 @@
+---
+apiVersion: replication.storage.openshift.io/v1alpha1
+kind: VolumeReplicationClass
+metadata:
+  name: hitachi-async
+  namespace: hitachi-system
+spec:
+  provisioner: csi.hitachi.com
+  parameters:
+    replicationType: async
+    journalType: journal-based
+    rpo: "60"  # RPO in seconds
+    autoResync: "true"
+    resyncInterval: "300"  # Resync check interval in seconds
+  volumeReplicationEnabled: true
+---
+apiVersion: replication.storage.openshift.io/v1alpha1
+kind: VolumeReplicationClass
+metadata:
+  name: hitachi-sync
+  namespace: hitachi-system
+spec:
+  provisioner: csi.hitachi.com
+  parameters:
+    replicationType: sync
+    journalType: journal-based
+    rpo: "0"  # Synchronous RPO
+    autoResync: "true"
+  volumeReplicationEnabled: true

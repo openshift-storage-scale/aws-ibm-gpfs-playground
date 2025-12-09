@@ -1,0 +1,30 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: hitachi-storage
+  labels:
+    vendor: hitachi
+    app: sds
+spec:
+  provisioner: csi.hitachi.com
+  parameters:
+    pool: replication-pool
+    protectionLevel: "high"
+  allowVolumeExpansion: true
+  volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: hitachi-storage-standard
+  labels:
+    vendor: hitachi
+    tier: standard
+spec:
+  provisioner: csi.hitachi.com
+  parameters:
+    pool: replication-pool
+    protectionLevel: "standard"
+  allowVolumeExpansion: true
+  volumeBindingMode: WaitForFirstConsumer

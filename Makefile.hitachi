@@ -1,0 +1,128 @@
+.PHONY: hitachi-info
+hitachi-info:  ## Show Hitachi SDS target information
+	@echo "Hitachi VSP One SDS Playground Setup"
+	@echo "======================================"
+	@echo "Available targets:"
+	@echo "  make hitachi-help              - Show all Hitachi targets"
+	@echo "  make hitachi-check-prereqs     - Check prerequisites"
+	@echo "  make hitachi-plan              - Show what will be created"
+	@echo "  make hitachi-aws-setup         - Create AWS infrastructure"
+	@echo "  make hitachi-sds-install       - Install Hitachi SDS"
+	@echo "  make hitachi-pool-setup        - Configure storage pools"
+	@echo "  make hitachi-csi-install       - Install CSI driver"
+	@echo "  make hitachi-ocp-setup         - Setup OCP integration"
+	@echo "  make hitachi-validate          - Validate installation"
+	@echo "  make hitachi-deploy-example    - Deploy example workload"
+	@echo "  make hitachi-test              - Run tests"
+	@echo "  make hitachi-status            - Show status"
+	@echo "  make hitachi-setup-all         - Run complete setup"
+	@echo "  make hitachi-cleanup           - Cleanup everything"
+
+.PHONY: hitachi-help
+hitachi-help:  ## Show Hitachi targets
+	@grep -E '^.PHONY: hitachi-' Makefile.hitachi | sed 's/.PHONY: /  make /' | sort
+
+.PHONY: hitachi-check-prereqs
+hitachi-check-prereqs:  ## Check prerequisites
+	@echo "Checking prerequisites..."
+	@command -v aws >/dev/null 2>&1 || { echo "❌ AWS CLI not found"; exit 1; }
+	@command -v terraform >/dev/null 2>&1 || { echo "❌ Terraform not found"; exit 1; }
+	@command -v ansible >/dev/null 2>&1 || { echo "❌ Ansible not found"; exit 1; }
+	@command -v kubectl >/dev/null 2>&1 || { echo "❌ kubectl not found"; exit 1; }
+	@test -f hitachi.overrides.yml || { echo "❌ hitachi.overrides.yml not found"; exit 1; }
+	@echo "✅ All prerequisites met"
+
+.PHONY: hitachi-plan
+hitachi-plan: hitachi-check-prereqs  ## Plan AWS infrastructure
+	@echo "Planning Hitachi SDS infrastructure..."
+	terraform -chdir=terraform init
+	terraform -chdir=terraform plan \
+		-var-file=../hitachi.overrides.yml \
+		-out=../hitachi.tfplan
+
+.PHONY: hitachi-aws-setup
+hitachi-aws-setup: hitachi-plan  ## Create AWS infrastructure
+	@echo "Creating AWS infrastructure for Hitachi SDS..."
+	terraform -chdir=terraform apply ../hitachi.tfplan
+	@echo "Waiting for instances to be ready..."
+	sleep 30
+	@echo "Generating Ansible inventory..."
+	./scripts/hitachi-prepare-nodes.sh
+
+.PHONY: hitachi-sds-install
+hitachi-sds-install: hitachi-aws-setup  ## Install Hitachi VSP One SDS
+	@echo "Installing Hitachi VSP One SDS..."
+	ansible-playbook -i config/hitachi/inventory/hitachi-hosts.yml \
+		playbooks/hitachi-setup.yml \
+		-e @hitachi.overrides.yml
+
+.PHONY: hitachi-pool-setup
+hitachi-pool-setup:  ## Configure storage pools
+	@echo "Configuring storage pools..."
+	ansible-playbook -i config/hitachi/inventory/hitachi-hosts.yml \
+		playbooks/hitachi-storage.yml \
+		-e @hitachi.overrides.yml
+
+.PHONY: hitachi-csi-install
+hitachi-csi-install:  ## Install Hitachi CSI driver
+	@echo "Installing Hitachi CSI driver..."
+	ansible-playbook -i config/hitachi/inventory/hitachi-hosts.yml \
+		playbooks/hitachi-csi-install.yml \
+		-e @hitachi.overrides.yml
+
+.PHONY: hitachi-ocp-setup
+hitachi-ocp-setup: hitachi-csi-install  ## Setup OCP integration
+	@echo "Setting up OCP integration..."
+	kubectl apply -f config/hitachi/storage/storage-class.yaml
+	kubectl apply -f config/hitachi/storage/vrc-async.yaml
+	kubectl apply -f config/hitachi/storage/rbac.yaml
+	@echo "✅ OCP setup complete"
+
+.PHONY: hitachi-validate
+hitachi-validate:  ## Validate installation
+	@echo "Validating installation..."
+	ansible-playbook -i config/hitachi/inventory/hitachi-hosts.yml \
+		playbooks/hitachi-validation.yml \
+		-e @hitachi.overrides.yml
+	./scripts/hitachi-verify-install.sh
+
+.PHONY: hitachi-deploy-example
+hitachi-deploy-example:  ## Deploy example workload
+	@echo "Deploying example replication..."
+	kubectl apply -f config/hitachi/examples/pvc-sample.yaml
+	kubectl apply -f config/hitachi/examples/basic-replication.yaml
+	kubectl apply -f config/hitachi/examples/app-test.yaml
+	@echo "Monitor with: kubectl get volumereplication -w"
+
+.PHONY: hitachi-test
+hitachi-test:  ## Run tests
+	@echo "Running Hitachi replication tests..."
+	./scripts/hitachi-test-csi.sh
+
+.PHONY: hitachi-status
+hitachi-status:  ## Show status
+	@echo "=== Hitachi SDS Status ==="
+	@echo "OCP Storage Classes:"
+	@kubectl get storageclass -l vendor=hitachi 2>/dev/null || echo "None deployed"
+	@echo ""
+	@echo "CSI Driver:"
+	@kubectl get csi-drivers 2>/dev/null | grep hitachi || echo "Not installed"
+	@echo ""
+	@echo "Volumes:"
+	@kubectl get pvc -A -l storage=hitachi 2>/dev/null | tail -5 || echo "None"
+
+.PHONY: hitachi-setup-all
+hitachi-setup-all: hitachi-sds-install hitachi-pool-setup hitachi-csi-install hitachi-ocp-setup hitachi-validate  ## Complete setup
+	@echo "✅ Hitachi SDS playground setup complete!"
+	@echo "Next: make hitachi-deploy-example"
+
+.PHONY: hitachi-cleanup
+hitachi-cleanup:  ## Cleanup everything
+	@echo "WARNING: This will delete all Hitachi resources"
+	@read -p "Continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		ansible-playbook -i config/hitachi/inventory/hitachi-hosts.yml \
+			playbooks/hitachi-cleanup.yml || true; \
+		terraform -chdir=terraform destroy -auto-approve; \
+	fi

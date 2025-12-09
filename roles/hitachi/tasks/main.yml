@@ -1,0 +1,8 @@
+---
+- name: Install Hitachi VSP One SDS
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - hitachi
