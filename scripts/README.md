@@ -7,8 +7,12 @@ This directory contains scripts for deploying and monitoring Hitachi VSP One SDS
 ```
 scripts/
 ├── deployment/          # Deployment automation scripts
+│   ├── hitachi-complete-setup.sh        # ⭐ Complete end-to-end setup (recommended)
+│   ├── allocate-eip.sh                  # Allocate Elastic IP for console access
+│   ├── deploy-hitachi-operator.sh       # Deploy HSPC operator via Helm
 │   ├── deploy-sds-block.sh              # Deploy SDS Block EC2 infrastructure
-│   └── prepare-hitachi-namespace.sh     # Prepare Kubernetes namespaces
+│   ├── prepare-namespaces.sh            # Prepare Kubernetes namespaces
+│   └── prepare-hitachi-namespace.sh     # [deprecated] Use prepare-namespaces.sh
 └── monitoring/          # Monitoring and diagnostics scripts
     ├── monitor-hitachi-deployment.sh    # One-time status check
     └── watch-hitachi-deployment.sh      # Continuous monitoring
@@ -16,7 +20,28 @@ scripts/
 
 ## Quick Start
 
-### 1. Deploy SDS Block Infrastructure
+### Complete Setup (Recommended - All Phases at Once)
+
+```bash
+./scripts/deployment/hitachi-complete-setup.sh eu-north-1 gpfs-levanon-c4qpp default
+```
+
+This orchestrator script runs all phases sequentially:
+1. **Verify Infrastructure** - Check CloudFormation stack status
+2. **Verify OCP Cluster** - Test Kubernetes connectivity  
+3. **Prepare Namespaces** - Create hitachi-sds and hitachi-system namespaces
+4. **Deploy HSPC Operator** - Install Hitachi Storage Plug-in via Helm
+5. **Allocate Elastic IP** - Get public access to management console
+
+**Expected time:** ~5-10 minutes
+
+---
+
+### Phase-by-Phase Setup
+
+If you need more control, run each phase separately:
+
+#### Phase 1: Deploy SDS Block Infrastructure
 
 Deploy the Hitachi SDS Block EC2 instance on AWS:
 
@@ -28,17 +53,51 @@ Deploy the Hitachi SDS Block EC2 instance on AWS:
 - Verifies AWS credentials and Kubernetes connectivity
 - Creates EC2 key pair if needed
 - Deploys CloudFormation stack with:
-  - EC2 instance (m5.2xlarge with Ubuntu)
+  - EC2 instance (m5.2xlarge)
   - Network interfaces (management + data)
   - Security groups (ports 8443, 3260)
   - EBS volumes (100GB root + 500GB data)
   - IAM role and CloudWatch monitoring
 
-**Expected output:**
-- New CloudFormation stack `hitachi-sds-block-gpfs-levanon-c4qpp`
-- Running EC2 instance with public IP
+**Expected output:** New CloudFormation stack with running EC2 instance
 
-### 2. Monitor Infrastructure Deployment
+#### Phase 2: Prepare Kubernetes Namespaces
+
+```bash
+./scripts/deployment/prepare-namespaces.sh ~/.kube/config hitachi-system
+```
+
+**What it does:**
+- Creates hitachi-sds and hitachi-system namespaces
+- Labels namespaces for operator deployment
+- Verifies namespace creation
+
+#### Phase 3: Deploy Hitachi HSPC Operator
+
+```bash
+./scripts/deployment/deploy-hitachi-operator.sh ~/.kube/config hitachi-system 3.14.0
+```
+
+**What it does:**
+- Adds Hitachi Helm repository
+- Deploys Storage Plug-in for Containers via Helm
+- Waits for operator pods to become ready (2-3 minutes)
+- Displays operator status
+
+#### Phase 4: Allocate Elastic IP
+
+```bash
+./scripts/deployment/allocate-eip.sh eu-north-1 eni-01fb79c3038d88dcb default
+```
+
+**What it does:**
+- Allocates new Elastic IP (or reuses existing)
+- Associates with management ENI
+- Displays console access URL
+
+---
+
+## 2. Monitor Infrastructure Deployment
 
 While the deployment is running or after it completes, check the status:
 
@@ -58,16 +117,25 @@ While the deployment is running or after it completes, check the status:
 - ✓ Operator deployments
 - ✓ Web console accessibility (port 8443)
 
-### 3. Deploy Hitachi Operators to Kubernetes
+---
 
-After the EC2 infrastructure is ready, deploy the Hitachi SDS operators to your OpenShift cluster:
+## Make Targets
+
+For convenience, Makefile targets are also available:
 
 ```bash
-# Prepare namespaces
-./scripts/deployment/prepare-hitachi-namespace.sh
+# Quick start - complete setup
+make hitachi-complete-setup
 
-# Install operators (uses make target)
-make install-hitachi
+# Individual phases
+make hitachi-prepare-ns
+make hitachi-deploy-operator
+make hitachi-allocate-eip
+
+# Info
+make hitachi-info
+make hitachi-help
+make hitachi-check-prereqs
 ```
 
 ## Usage Examples
@@ -195,3 +263,29 @@ For issues or questions:
 3. Check AWS CloudFormation events
 4. Verify Kubernetes cluster connectivity
 5. Review operator deployment logs in hitachi-system namespace
+
+---
+
+## Complete Script-Based Workflow
+
+All successful operations have been refactored into scripts:
+
+### ✓ Scripts Available:
+- `allocate-eip.sh` - Allocate and attach Elastic IP
+- `deploy-hitachi-operator.sh` - Deploy HSPC operator via Helm  
+- `deploy-sds-block.sh` - Deploy EC2 infrastructure
+- `prepare-namespaces.sh` - Prepare Kubernetes namespaces
+- `hitachi-complete-setup.sh` - Orchestrate all phases
+
+### ✓ Makefile Targets:
+- `make hitachi-complete-setup` - Run full setup
+- `make hitachi-prepare-ns` - Prepare namespaces
+- `make hitachi-deploy-operator` - Deploy operator
+- `make hitachi-allocate-eip` - Allocate EIP
+
+### Automation Benefits:
+✓ Reproducible deployments
+✓ Error handling and validation
+✓ Progress feedback and logging
+✓ Rollback capability on errors
+✓ Self-contained operation documentation

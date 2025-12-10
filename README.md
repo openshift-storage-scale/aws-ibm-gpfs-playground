@@ -1,5 +1,13 @@
 # Scripts to deploy AWS OCP cluster + GPFS
 
+## 📚 Documentation
+
+**New to this project?** Start with [Documentation Index](./docs/INDEX.md)
+
+For Hitachi SDS specific work, see [Hitachi Documentation](./docs/HITACHI_README.md)
+
+---
+
 ## Overview
 
 This repository automates the deployment of an OpenShift cluster on AWS with IBM Spectrum Scale (GPFS) storage using the openshift-fusion-access operator. The setup uses the **FileSystemClaim** controller to automatically create LocalDisk, Filesystem, and StorageClass resources.

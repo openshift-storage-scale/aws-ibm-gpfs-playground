@@ -7,6 +7,12 @@ hitachi-info:  ## Show Hitachi SDS target information
 	@echo "  make install-hitachi           - Deploy OCP cluster + Hitachi SDS (complete setup)"
 	@echo "  make hitachi-setup-all         - Deploy Hitachi on existing OCP cluster"
 	@echo ""
+	@echo "Script-based Setup (Recommended):"
+	@echo "  make hitachi-complete-setup    - Run complete setup script (all phases)"
+	@echo "  make hitachi-prepare-ns        - Prepare Kubernetes namespaces"
+	@echo "  make hitachi-deploy-operator   - Deploy HSPC operator via Helm"
+	@echo "  make hitachi-allocate-eip      - Allocate Elastic IP for console access"
+	@echo ""
 	@echo "Available targets (after OCP is running):"
 	@echo "  make hitachi-help              - Show all Hitachi targets"
 	@echo "  make hitachi-check-prereqs     - Check prerequisites"
@@ -137,6 +143,29 @@ hitachi-status:  ## Show status
 hitachi-setup-all: hitachi-sds-install hitachi-pool-setup hitachi-csi-install hitachi-ocp-setup hitachi-validate  ## Complete setup (requires OCP cluster running)
 	@echo "✅ Hitachi SDS playground setup complete!"
 	@echo "Next: make hitachi-deploy-example"
+
+##@ Hitachi SDS Script-based Deployment Targets
+.PHONY: hitachi-complete-setup
+hitachi-complete-setup:  ## Run complete setup script (all phases in one command)
+	@echo "Running Hitachi complete setup..."
+	@./scripts/deployment/hitachi-complete-setup.sh eu-north-1 gpfs-levanon-c4qpp default
+
+.PHONY: hitachi-prepare-ns
+hitachi-prepare-ns:  ## Prepare Kubernetes namespaces for Hitachi
+	@echo "Preparing Kubernetes namespaces..."
+	@export KUBECONFIG=$$(pwd)/ocp_install_files/auth/kubeconfig; \
+	./scripts/deployment/prepare-namespaces.sh
+
+.PHONY: hitachi-deploy-operator
+hitachi-deploy-operator:  ## Deploy Hitachi HSPC operator via Helm
+	@echo "Deploying Hitachi HSPC operator..."
+	@export KUBECONFIG=$$(pwd)/ocp_install_files/auth/kubeconfig; \
+	./scripts/deployment/deploy-hitachi-operator.sh $$(pwd)/ocp_install_files/auth/kubeconfig hitachi-system 3.14.0
+
+.PHONY: hitachi-allocate-eip
+hitachi-allocate-eip:  ## Allocate and attach Elastic IP to management ENI
+	@echo "Allocating Elastic IP..."
+	@./scripts/deployment/allocate-eip.sh eu-north-1 eni-01fb79c3038d88dcb default
 
 .PHONY: hitachi-cleanup
 hitachi-cleanup:  ## Cleanup Hitachi resources
