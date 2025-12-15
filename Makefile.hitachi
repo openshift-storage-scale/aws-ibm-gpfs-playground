@@ -157,10 +157,33 @@ hitachi-prepare-ns:  ## Prepare Kubernetes namespaces for Hitachi
 	./scripts/deployment/prepare-namespaces.sh
 
 .PHONY: hitachi-deploy-operator
-hitachi-deploy-operator:  ## Deploy Hitachi HSPC operator via Helm
+hitachi-deploy-operator:  ## Deploy Hitachi HSPC operator via Helm (with local chart support)
 	@echo "Deploying Hitachi HSPC operator..."
 	@export KUBECONFIG=$$(pwd)/ocp_install_files/auth/kubeconfig; \
-	./scripts/deployment/deploy-hitachi-operator.sh $$(pwd)/ocp_install_files/auth/kubeconfig hitachi-system 3.14.0
+	./scripts/deployment/deploy-hitachi-operator.sh $$(pwd)/ocp_install_files/auth/kubeconfig hitachi-system 3.14.0 true
+
+.PHONY: hitachi-download-charts
+hitachi-download-charts:  ## Download Hitachi Helm charts for offline use
+	@echo "Downloading Hitachi Helm charts..."
+	@chmod +x scripts/download-hitachi-charts.sh
+	@./scripts/download-hitachi-charts.sh $$(pwd)/charts 3.14.0
+	@echo "✅ Charts downloaded to: $$(pwd)/charts"
+	@echo "Log file: Logs/download-hitachi-charts-*.log"
+
+.PHONY: hitachi-deploy-operator-disconnected
+hitachi-deploy-operator-disconnected:  ## Deploy operator for disconnected environments
+	@echo "Deploying Hitachi HSPC operator (disconnected mode)..."
+	@export KUBECONFIG=$$(pwd)/ocp_install_files/auth/kubeconfig; \
+	chmod +x scripts/deployment/deploy-hitachi-operator-disconnected.sh; \
+	./scripts/deployment/deploy-hitachi-operator-disconnected.sh
+	@echo "✅ Operator deployment logs: Logs/deploy-hitachi-operator-disconnected-*.log"
+
+.PHONY: hitachi-check-network
+hitachi-check-network:  ## Check cluster network connectivity
+	@echo "Checking network connectivity..."
+	@chmod +x scripts/check-network-connectivity.sh
+	@./scripts/check-network-connectivity.sh
+	@echo "✅ Diagnostic logs: Logs/check-network-connectivity-*.log"
 
 .PHONY: hitachi-allocate-eip
 hitachi-allocate-eip:  ## Allocate and attach Elastic IP to management ENI

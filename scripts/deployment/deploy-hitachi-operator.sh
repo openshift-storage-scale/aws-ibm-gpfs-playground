@@ -2,18 +2,40 @@
 ##############################################################################
 # deploy-hitachi-operator.sh
 # Purpose: Deploy Hitachi Storage Plug-in for Containers (HSPC) operator
-# Usage: ./deploy-hitachi-operator.sh [kubeconfig-path] [namespace] [version]
-# Example: ./deploy-hitachi-operator.sh ~/.kube/config hitachi-system 3.14.0
+# Usage: ./deploy-hitachi-operator.sh [kubeconfig-path] [namespace] [version] [use-local-chart]
+# Example: ./deploy-hitachi-operator.sh ~/.kube/config hitachi-system 3.14.0 true
 ##############################################################################
 
 set -e
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../" && pwd)"
+LOG_DIR="${PROJECT_ROOT}/Logs"
+
+# Create logs directory if it doesn't exist
+mkdir -p "$LOG_DIR"
+
+# Setup logging
+LOG_FILE="${LOG_DIR}/deploy-hitachi-operator-$(date +%Y%m%d_%H%M%S).log"
+
+# Redirect all output to log file and console
+exec > >(tee -a "$LOG_FILE")
+exec 2>&1
+
+echo "=========================================="
+echo "Log file: $LOG_FILE"
+echo "=========================================="
+echo ""
+
 KUBECONFIG_PATH="${1:-$(echo $KUBECONFIG)}"
 NAMESPACE="${2:-hitachi-system}"
 HELM_VERSION="${3:-3.14.0}"
+USE_LOCAL_CHART="${4:-true}"
 HELM_REPO="hitachi"
 HELM_CHART="vsp-one-sds-hspc"
 HELM_REPO_URL="https://cdn.hitachivantara.com/charts/hitachi"
+LOCAL_CHART_PATH="${PROJECT_ROOT}/charts/vsp-one-sds-hspc"
 
 if [ -z "$KUBECONFIG_PATH" ]; then
     echo "Error: KUBECONFIG not set"
@@ -51,22 +73,39 @@ fi
 echo "✓ Namespace $NAMESPACE exists"
 echo ""
 
-# Step 3: Add Hitachi Helm repository
-echo "[3/5] Adding Hitachi Helm repository..."
-helm repo add "$HELM_REPO" "$HELM_REPO_URL" 2>&1 | grep -v "already exists" || true
-helm repo update 2>&1 | grep -E "Hang tight|Update Complete|^$" || true
-echo "✓ Helm repository configured"
+# Step 3: Handle chart deployment
+echo "[3/5] Preparing Helm chart..."
+
+if [ "$USE_LOCAL_CHART" == "true" ] && [ -d "$LOCAL_CHART_PATH" ]; then
+    echo "✓ Using pre-downloaded local chart: $LOCAL_CHART_PATH"
+    CHART_REFERENCE="$LOCAL_CHART_PATH"
+elif [ "$USE_LOCAL_CHART" == "true" ] && [ ! -d "$LOCAL_CHART_PATH" ]; then
+    echo "✗ Local chart not found at: $LOCAL_CHART_PATH"
+    echo "  To download the chart for offline use:"
+    echo "  From a machine with internet access:"
+    echo "    helm repo add hitachi $HELM_REPO_URL"
+    echo "    helm pull hitachi/$HELM_CHART --version $HELM_VERSION --untar"
+    echo "    mkdir -p $PROJECT_ROOT/charts"
+    echo "    mv $HELM_CHART $PROJECT_ROOT/charts/"
+    exit 1
+else
+    echo "Adding Hitachi Helm repository..."
+    helm repo add "$HELM_REPO" "$HELM_REPO_URL" 2>&1 | grep -v "already exists" || true
+    helm repo update 2>&1 | grep -E "Hang tight|Update Complete|^$" || true
+    echo "✓ Helm repository configured"
+    CHART_REFERENCE="$HELM_REPO/$HELM_CHART"
+fi
 echo ""
 
 # Step 4: Deploy HSPC operator via Helm
 echo "[4/5] Deploying Hitachi HSPC operator..."
-echo "  Chart: $HELM_REPO/$HELM_CHART"
+echo "  Chart: $CHART_REFERENCE"
 echo "  Version: $HELM_VERSION"
 echo "  Release: $HELM_REPO-$HELM_CHART"
 echo ""
 
 helm upgrade --install "$HELM_REPO-$HELM_CHART" \
-    "$HELM_REPO/$HELM_CHART" \
+    "$CHART_REFERENCE" \
     --namespace "$NAMESPACE" \
     --create-namespace \
     --version "$HELM_VERSION" \

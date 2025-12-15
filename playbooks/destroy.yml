@@ -7,7 +7,36 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   tasks:
-    - name: Does cluster metadata.json exist
+    - name: Check if Hitachi SDS Block was installed
+      ansible.builtin.stat:
+        path: "{{ ocp_cluster_name }}_sds_installed"
+      register: sds_installed_marker
+
+    - name: Check for Hitachi SDS CloudFormation stack
+      amazon.aws.cloudformation_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        stack_name: "hitachi-sds-block-{{ ocp_cluster_name }}"
+      register: sds_cf_stack
+      failed_when: false
+
+    - name: Set fact if SDS was installed
+      ansible.builtin.set_fact:
+        sds_installed: "{{ sds_installed_marker.stat.exists or (sds_cf_stack.cloudformation | default({}) | length > 0) }}"
+
+    - name: Display SDS cleanup status
+      ansible.builtin.debug:
+        msg: "Hitachi SDS detected - will run cleanup before destroying cluster"
+      when: sds_installed | bool
+
+    # ======================================================================
+    # Phase 0: Destroy Hitachi SDS Block (if installed)
+    # ======================================================================
+    - name: Run SDS Block destruction playbook
+      ansible.builtin.include_tasks: sds-block-destroy.yml
+      when: sds_installed | bool
+
+    - name: Check for OpenShift metadata
       ansible.builtin.stat:
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file

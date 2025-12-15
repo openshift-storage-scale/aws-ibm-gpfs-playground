@@ -7,3 +7,5 @@ infra
 .envrc
 Temp/
 reports/
+Logs/
+*.log

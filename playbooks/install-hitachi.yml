@@ -62,6 +62,7 @@
         sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
         sg_worker_name: "{{ sg_info.security_groups[0].group_name }}"
         sg_worker_description: "{{ sg_info.security_groups[0].description }}"
+      when: sg_info.security_groups | length > 0
 
     - name: Open up security group for Hitachi SDS ports
       tags:
@@ -94,6 +95,7 @@
             group_id: "{{ sg_worker_id }}"
             rule_desc: Hitachi replication ports
         purge_rules: false
+      when: sg_info.security_groups | length > 0
 
     # ======================================================================
     # Phase 3: Hitachi SDS Operator Installation
@@ -121,6 +123,33 @@
             exit 1
           environment:
             KUBECONFIG: "{{ kubeconfig_path }}"
+          ignore_errors: true
+          register: api_ready
+          failed_when: false
+
+        - name: Fail if OCP cluster is not accessible
+          ansible.builtin.fail:
+            msg: |
+              ❌ ERROR: OCP cluster is not accessible!
+              
+              The kubeconfig exists, but the Kubernetes API is not responding.
+              This usually means:
+              1. The OCP cluster was never deployed (metadata.json exists but cluster wasn't created)
+              2. The cluster was destroyed/terminated in AWS
+              3. The cluster is still bootstrapping (takes ~40-45 minutes)
+              
+              To fix this:
+              - If cluster was destroyed: Remove metadata.json to redeploy
+                rm -f {{ ocpfolder }}/metadata.json
+                Then run: make install-hitachi-with-sds
+              
+              - If cluster is still bootstrapping: Wait longer and retry
+              
+              - To check cluster status in AWS:
+                aws ec2 describe-instances --profile {{ aws_profile }} --region {{ ocp_region }} \
+                  --filters "Name=tag:Name,Values={{ ocp_cluster_name }}-*" \
+                  --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PrivateIpAddress]'
+          when: api_ready.rc != 0
 
         - name: Verify OCP cluster connectivity
           ansible.builtin.shell: |

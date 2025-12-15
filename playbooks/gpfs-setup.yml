@@ -1,4 +1,7 @@
-# we need to label the workers so the localdisk
+---
+# Tasks for GPFS cluster setup (included from install.yml)
+# Note: Play header removed since this is included as tasks
+
 - name: Label the workers
   tags:
     - 6_gpfs
@@ -37,7 +40,7 @@
     set -ex
     export KUBECONFIG={{ kubeconfig }}
     COUNT=$({{ oc_bin }} get pods -n ibm-spectrum-scale -l app.kubernetes.io/name=core --no-headers | grep Running | wc -l)
-    NODES=$(oc get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
+    NODES=$({{ oc_bin }} get nodes -l "node-role.kubernetes.io/worker" --no-headers | wc -l)
     if [ ${COUNT} != ${NODES} ]; then
       exit 1
     fi

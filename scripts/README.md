@@ -1,291 +1,486 @@
-# Hitachi SDS Deployment Scripts
+# Scripts Organization
 
-This directory contains scripts for deploying and monitoring Hitachi VSP One SDS Block infrastructure on AWS and operators on OpenShift.
+Comprehensive organization of all Hitachi deployment and validation scripts.
 
-## Directory Structure
+---
+
+## 📁 Directory Structure
 
 ```
 scripts/
-├── deployment/          # Deployment automation scripts
-│   ├── hitachi-complete-setup.sh        # ⭐ Complete end-to-end setup (recommended)
-│   ├── allocate-eip.sh                  # Allocate Elastic IP for console access
-│   ├── deploy-hitachi-operator.sh       # Deploy HSPC operator via Helm
-│   ├── deploy-sds-block.sh              # Deploy SDS Block EC2 infrastructure
-│   ├── prepare-namespaces.sh            # Prepare Kubernetes namespaces
-│   └── prepare-hitachi-namespace.sh     # [deprecated] Use prepare-namespaces.sh
-└── monitoring/          # Monitoring and diagnostics scripts
-    ├── monitor-hitachi-deployment.sh    # One-time status check
-    └── watch-hitachi-deployment.sh      # Continuous monitoring
+├── QUICK_START_DEPLOYMENT.sh          ← One-command deployment starter
+├── README.md                          ← This file
+├── deployment/                        ← Deployment scripts
+│   ├── allocate-eip.sh               ← AWS EIP allocation
+│   ├── deploy-hitachi-operator.sh    ← Connected deployment
+│   ├── deploy-hitachi-operator-disconnected.sh ← Air-gapped deployment
+│   ├── deploy-sds-block.sh           ← SDS Block CloudFormation
+│   ├── hitachi-complete-setup.sh     ← End-to-end setup
+│   ├── prepare-hitachi-namespace.sh  ← Namespace preparation
+│   └── prepare-namespaces.sh         ← General namespace setup
+├── validation/                        ← Validation & testing scripts
+│   ├── check-network-connectivity.sh ← Network diagnostics
+│   ├── hitachi-prepare-nodes.sh      ← Node preparation
+│   ├── hitachi-test-csi.sh           ← CSI driver testing
+│   ├── hitachi-verify-install.sh     ← Installation verification
+│   └── troubleshoot-hitachi-deployment.sh ← Comprehensive troubleshooting
+├── monitoring/                        ← Monitoring scripts
+│   ├── check-deployment-status.sh    ← Quick status check
+│   ├── monitor-hitachi-deployment.sh ← Continuous monitoring
+│   └── watch-hitachi-deployment.sh   ← Real-time watch
+├── utilities/                         ← Utility scripts
+│   ├── cleanup-hitachi-sds-force.sh  ← Force cleanup of stuck resources
+│   ├── compare-ui-vs-script.sh       ← Compare UI vs CLI deployments
+│   ├── download-hitachi-charts.sh    ← Pre-download Helm charts
+│   ├── extract-hitachi-yaml.sh       ← Extract deployed YAML
+│   └── find-hitachi-image.sh         ← Find container images
+└── README.md                          ← This file
 ```
-
-## Quick Start
-
-### Complete Setup (Recommended - All Phases at Once)
-
-```bash
-./scripts/deployment/hitachi-complete-setup.sh eu-north-1 gpfs-levanon-c4qpp default
-```
-
-This orchestrator script runs all phases sequentially:
-1. **Verify Infrastructure** - Check CloudFormation stack status
-2. **Verify OCP Cluster** - Test Kubernetes connectivity  
-3. **Prepare Namespaces** - Create hitachi-sds and hitachi-system namespaces
-4. **Deploy HSPC Operator** - Install Hitachi Storage Plug-in via Helm
-5. **Allocate Elastic IP** - Get public access to management console
-
-**Expected time:** ~5-10 minutes
 
 ---
 
-### Phase-by-Phase Setup
+## 🚀 Quick Start
 
-If you need more control, run each phase separately:
-
-#### Phase 1: Deploy SDS Block Infrastructure
-
-Deploy the Hitachi SDS Block EC2 instance on AWS:
+### Deploy Everything
 
 ```bash
-./scripts/deployment/deploy-sds-block.sh eu-north-1 gpfs-levanon-c4qpp
+# Complete deployment in one command
+./scripts/QUICK_START_DEPLOYMENT.sh
 ```
 
-**What it does:**
-- Verifies AWS credentials and Kubernetes connectivity
-- Creates EC2 key pair if needed
-- Deploys CloudFormation stack with:
-  - EC2 instance (m5.2xlarge)
-  - Network interfaces (management + data)
-  - Security groups (ports 8443, 3260)
-  - EBS volumes (100GB root + 500GB data)
-  - IAM role and CloudWatch monitoring
-
-**Expected output:** New CloudFormation stack with running EC2 instance
-
-#### Phase 2: Prepare Kubernetes Namespaces
+### Step-by-Step Deployment
 
 ```bash
-./scripts/deployment/prepare-namespaces.sh ~/.kube/config hitachi-system
+# 1. Prepare namespaces and resources
+./scripts/deployment/prepare-namespaces.sh
+
+# 2. Deploy SDS Block infrastructure
+./scripts/deployment/deploy-sds-block.sh
+
+# 3. Deploy Hitachi operator (choose one)
+# For connected environments:
+./scripts/deployment/deploy-hitachi-operator.sh
+
+# For air-gapped environments:
+./scripts/deployment/deploy-hitachi-operator-disconnected.sh
+
+# 4. Run complete setup (if not done above)
+./scripts/deployment/hitachi-complete-setup.sh
 ```
-
-**What it does:**
-- Creates hitachi-sds and hitachi-system namespaces
-- Labels namespaces for operator deployment
-- Verifies namespace creation
-
-#### Phase 3: Deploy Hitachi HSPC Operator
-
-```bash
-./scripts/deployment/deploy-hitachi-operator.sh ~/.kube/config hitachi-system 3.14.0
-```
-
-**What it does:**
-- Adds Hitachi Helm repository
-- Deploys Storage Plug-in for Containers via Helm
-- Waits for operator pods to become ready (2-3 minutes)
-- Displays operator status
-
-#### Phase 4: Allocate Elastic IP
-
-```bash
-./scripts/deployment/allocate-eip.sh eu-north-1 eni-01fb79c3038d88dcb default
-```
-
-**What it does:**
-- Allocates new Elastic IP (or reuses existing)
-- Associates with management ENI
-- Displays console access URL
 
 ---
 
-## 2. Monitor Infrastructure Deployment
+## 📖 Scripts by Category
 
-While the deployment is running or after it completes, check the status:
+### 🚀 Deployment Scripts
 
-```bash
-# One-time status check
-./scripts/monitoring/monitor-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+Used to deploy and configure Hitachi components.
 
-# Continuous monitoring (updates every 30 seconds)
-./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
-```
+#### `deployment/prepare-namespaces.sh`
+**Purpose:** Create and prepare Kubernetes namespaces
+**Usage:** `./scripts/deployment/prepare-namespaces.sh`
+**Prerequisites:** kubectl access to cluster
+**Output:** Created namespaces with RBAC
 
-**What it shows:**
-- ✓ CloudFormation stack status
-- ✓ EC2 instance details (IP addresses, state)
-- ✓ Kubernetes cluster connectivity
-- ✓ Hitachi namespaces and pod status
-- ✓ Operator deployments
-- ✓ Web console accessibility (port 8443)
+#### `deployment/deploy-sds-block.sh`
+**Purpose:** Deploy Hitachi SDS Block via CloudFormation
+**Usage:** `./scripts/deployment/deploy-sds-block.sh`
+**Prerequisites:** AWS credentials, VPC configured
+**Output:** SDS Block instance with management console
+**Key Variables:**
+- `OCP_CLUSTER_NAME` - OpenShift cluster name
+- `OCP_REGION` - AWS region
+- `AWS_PROFILE` - AWS profile to use
+
+#### `deployment/deploy-hitachi-operator.sh`
+**Purpose:** Deploy Hitachi operator (connected environment)
+**Usage:** `./scripts/deployment/deploy-hitachi-operator.sh`
+**Prerequisites:** Internet access to registries
+**Output:** Hitachi HSPC operator deployed
+**For:** Environments with Docker Hub access
+
+#### `deployment/deploy-hitachi-operator-disconnected.sh`
+**Purpose:** Deploy Hitachi operator (air-gapped environment)
+**Usage:** `./scripts/deployment/deploy-hitachi-operator-disconnected.sh`
+**Prerequisites:** Pre-downloaded charts in local directory
+**Output:** Hitachi HSPC operator deployed from manifests
+**For:** Disconnected/air-gapped environments
+
+#### `deployment/hitachi-complete-setup.sh`
+**Purpose:** Execute all deployment steps in sequence
+**Usage:** `./scripts/deployment/hitachi-complete-setup.sh`
+**Prerequisites:** All dependencies installed
+**Output:** Fully deployed Hitachi system
+**Time:** ~30 minutes
+
+#### `deployment/allocate-eip.sh`
+**Purpose:** Allocate and configure Elastic IP for SDS Block
+**Usage:** `./scripts/deployment/allocate-eip.sh`
+**Prerequisites:** AWS credentials, EC2 permissions
+**Output:** EIP allocated and associated to instance
 
 ---
 
-## Make Targets
+### ✅ Validation & Testing Scripts
 
-For convenience, Makefile targets are also available:
+Verify installation and test functionality.
 
+#### `validation/check-network-connectivity.sh`
+**Purpose:** Validate network connectivity to services
+**Usage:** `./scripts/validation/check-network-connectivity.sh`
+**Tests:**
+- Kubernetes API connectivity
+- Registry reachability
+- DNS resolution
+- Network policies
+**Output:** Network health report
+
+#### `validation/hitachi-prepare-nodes.sh`
+**Purpose:** Prepare cluster nodes for Hitachi
+**Usage:** `./scripts/validation/hitachi-prepare-nodes.sh`
+**Configures:**
+- Node labels
+- iSCSI multipath
+- Required kernel modules
+**Output:** Nodes ready for Hitachi workloads
+
+#### `validation/hitachi-verify-install.sh`
+**Purpose:** Verify Hitachi installation completeness
+**Usage:** `./scripts/validation/hitachi-verify-install.sh`
+**Checks:**
+- Operator deployment status
+- CustomResourceDefinitions
+- Namespace configurations
+- Required secrets
+**Output:** Installation verification report
+
+#### `validation/hitachi-test-csi.sh`
+**Purpose:** Test Hitachi CSI driver functionality
+**Usage:** `./scripts/validation/hitachi-test-csi.sh`
+**Tests:**
+- Volume provisioning
+- PVC creation
+- Pod attachment
+- I/O operations
+**Output:** CSI driver test results
+
+#### `validation/troubleshoot-hitachi-deployment.sh`
+**Purpose:** Comprehensive troubleshooting and diagnostics
+**Usage:** `./scripts/validation/troubleshoot-hitachi-deployment.sh`
+**Diagnoses:**
+- Pod status and events
+- Resource definitions
+- Network policies
+- Volume status
+- Recent errors
+**Output:** Detailed troubleshooting report
+
+---
+
+### 📊 Monitoring Scripts
+
+Monitor deployment progress and system health.
+
+#### `monitoring/check-deployment-status.sh`
+**Purpose:** Quick status check of deployment
+**Usage:** `./scripts/monitoring/check-deployment-status.sh`
+**Shows:**
+- Pod statuses
+- Operator status
+- Resource count
+**Time:** ~5 seconds
+
+#### `monitoring/monitor-hitachi-deployment.sh`
+**Purpose:** Continuous monitoring of Hitachi deployment
+**Usage:** `./scripts/monitoring/monitor-hitachi-deployment.sh`
+**Monitors:**
+- Pod lifecycle
+- Event logs
+- Resource usage
+- Error tracking
+**Refresh:** Every 10 seconds
+**Exit:** Ctrl+C
+
+#### `monitoring/watch-hitachi-deployment.sh`
+**Purpose:** Real-time watch of deployment progress
+**Usage:** `./scripts/monitoring/watch-hitachi-deployment.sh`
+**Features:**
+- Live pod status
+- Event streaming
+- Resource changes
+- Log tailing
+**Refresh:** Real-time
+
+---
+
+### 🔧 Utility Scripts
+
+Helper scripts for configuration and management.
+
+#### `utilities/download-hitachi-charts.sh`
+**Purpose:** Pre-download Helm charts for offline deployment
+**Usage:** `./scripts/utilities/download-hitachi-charts.sh`
+**Output:** Charts in `./Temp/Hitachi/charts/`
+**For:** Air-gapped deployments
+**Charts Downloaded:**
+- Hitachi HSPC operator chart
+- Hitachi CSI driver chart
+- Dependencies
+
+#### `utilities/extract-hitachi-yaml.sh`
+**Purpose:** Extract YAML from running Hitachi deployment
+**Usage:** `./scripts/utilities/extract-hitachi-yaml.sh`
+**Output:**
+- Operator manifests
+- CRDs
+- Configurations
+**Location:** `./extracted-yaml/`
+
+#### `utilities/compare-ui-vs-script.sh`
+**Purpose:** Compare UI-deployed vs script-deployed configurations
+**Usage:** `./scripts/utilities/compare-ui-vs-script.sh`
+**Compares:**
+- YAML definitions
+- Resource counts
+- Configuration differences
+**Output:** Comparison report
+
+#### `utilities/find-hitachi-image.sh`
+**Purpose:** Find and verify Hitachi container images
+**Usage:** `./scripts/utilities/find-hitachi-image.sh`
+**Searches:**
+- Local registries
+- Docker Hub
+- Private registries
+**Output:** Image availability report
+
+#### `utilities/cleanup-hitachi-sds-force.sh`
+**Purpose:** Force cleanup of stuck Hitachi SDS resources
+**Usage:** `./scripts/utilities/cleanup-hitachi-sds-force.sh [OPTIONS]`
+**Options:**
 ```bash
-# Quick start - complete setup
-make hitachi-complete-setup
+--cluster-name NAME     # OCP cluster name (required)
+--region REGION         # AWS region (required)
+--profile PROFILE       # AWS profile (optional)
+--dry-run              # Preview without making changes
+```
+**Cleans:**
+- CloudFormation stacks
+- EC2 instances
+- EBS volumes
+- Security groups
+- Network interfaces
+**Note:** Automatically called by `make destroy`
 
-# Individual phases
-make hitachi-prepare-ns
-make hitachi-deploy-operator
-make hitachi-allocate-eip
+---
 
-# Info
-make hitachi-info
-make hitachi-help
-make hitachi-check-prereqs
+## 🔑 Key Variables
+
+Most scripts use these environment variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `OCP_CLUSTER_NAME` | OpenShift cluster name | `gpfs-levanon-c4qpp` |
+| `OCP_REGION` | AWS region | `eu-north-1` |
+| `AWS_PROFILE` | AWS credential profile | `default` |
+| `KUBECONFIG` | Path to kubeconfig | `./ocp_install_files/auth/kubeconfig` |
+| `HITACHI_NAMESPACE` | Hitachi operator namespace | `hitachi-system` |
+| `HITACHI_VERSION` | Hitachi HSPC version | `3.14.0` |
+
+---
+
+## �� Prerequisites
+
+Before running scripts:
+
+### All Scripts
+- ✅ kubectl installed and configured
+- ✅ Kubeconfig with cluster access
+- ✅ Cluster name and region defined
+
+### Deployment Scripts
+- ✅ AWS credentials configured
+- ✅ VPC and networking ready
+- ✅ Required Kubernetes namespaces
+- ✅ Internet access (connected) or pre-downloaded charts (disconnected)
+
+### CloudFormation Scripts
+- ✅ AWS CLI configured
+- ✅ IAM permissions for CloudFormation, EC2, VPC
+- ✅ VPC and subnets available
+
+### Monitoring Scripts
+- ✅ kubectl access
+- ✅ View pod logs permission
+
+---
+
+## 📋 Common Workflows
+
+### Complete Fresh Deployment
+```bash
+# 1. Check network
+./scripts/validation/check-network-connectivity.sh
+
+# 2. Deploy everything
+./scripts/deployment/hitachi-complete-setup.sh
+
+# 3. Verify installation
+./scripts/validation/hitachi-verify-install.sh
+
+# 4. Monitor progress
+./scripts/monitoring/monitor-hitachi-deployment.sh
+
+# 5. Test CSI driver
+./scripts/validation/hitachi-test-csi.sh
 ```
 
-## Usage Examples
-
-### Complete deployment workflow:
-
+### Troubleshoot Failed Deployment
 ```bash
-# Terminal 1: Start deployment
-./scripts/deployment/deploy-sds-block.sh eu-north-1 gpfs-levanon-c4qpp
+# 1. Quick status check
+./scripts/monitoring/check-deployment-status.sh
 
-# Terminal 2: Monitor progress in real-time
-./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+# 2. Comprehensive troubleshooting
+./scripts/validation/troubleshoot-hitachi-deployment.sh
 
-# Once EC2 is running, deploy operators
-./scripts/deployment/prepare-hitachi-namespace.sh
-make install-hitachi
+# 3. Check network
+./scripts/validation/check-network-connectivity.sh
 
-# Keep monitoring the full stack
-./scripts/monitoring/watch-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp
+# 4. Watch real-time changes
+./scripts/monitoring/watch-hitachi-deployment.sh
 ```
 
-### Check specific resources:
-
+### Deploy in Air-Gapped Environment
 ```bash
-# Just check AWS infrastructure
-./scripts/monitoring/monitor-hitachi-deployment.sh eu-north-1 hitachi-sds-block-gpfs-levanon-c4qpp | head -50
+# 1. Pre-download charts (on connected machine)
+./scripts/utilities/download-hitachi-charts.sh
 
-# Just check Kubernetes resources
-export KUBECONFIG=/path/to/kubeconfig
-kubectl get pods -n hitachi-sds
-kubectl get pods -n hitachi-system
-kubectl describe deployments -n hitachi-sds
+# 2. Transfer to air-gapped environment
+# (sftp/rsync charts to target)
 
-# Check CloudFormation events
-aws cloudformation describe-stack-events \
-  --stack-name hitachi-sds-block-gpfs-levanon-c4qpp \
+# 3. Deploy from local manifests
+./scripts/deployment/deploy-hitachi-operator-disconnected.sh
+```
+
+### Clean Up Everything
+```bash
+# Automatic cleanup (no manual steps needed)
+make destroy
+
+# Or manual cleanup
+./scripts/utilities/cleanup-hitachi-sds-force.sh \
+  --cluster-name gpfs-levanon-c4qpp \
   --region eu-north-1 \
-  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED`].[LogicalResourceId,ResourceStatusReason]' \
-  --output table
+  --dry-run
+
+./scripts/utilities/cleanup-hitachi-sds-force.sh \
+  --cluster-name gpfs-levanon-c4qpp \
+  --region eu-north-1
 ```
-
-## Environment Variables
-
-All scripts respect the following environment variables:
-
-```bash
-# Kubernetes configuration
-export KUBECONFIG=/home/nlevanon/aws-gpfs-playground/ocp_install_files/auth/kubeconfig
-
-# AWS configuration (uses default profile)
-export AWS_PROFILE=default
-export AWS_REGION=eu-north-1
-
-# Custom configuration for monitoring scripts
-export MONITOR_INTERVAL=30  # Check every 30 seconds
-```
-
-## Logs and Outputs
-
-Deployment logs are saved to:
-```
-Temp/deploy-sds-20251209_HHMMSS.log
-Temp/sds-deploy-20251209_HHMMSS.log
-```
-
-Credentials saved to:
-```
-~/aws-gpfs-playground/ocp_install_files/sds-block-credentials.env
-```
-
-CloudFormation stack details:
-```bash
-aws cloudformation describe-stacks \
-  --stack-name hitachi-sds-block-gpfs-levanon-c4qpp \
-  --region eu-north-1 \
-  --query 'Stacks[0].Outputs' \
-  --output table
-```
-
-## Troubleshooting
-
-### Deployment fails with "Unresolved resource dependencies"
-- Check the CloudFormation template for parameter mismatches
-- Verify all AMI IDs exist in the target region
-- Run: `aws cloudformation validate-template --template-body file://Temp/Hitachi/sds-block-cf-clean.yaml --region eu-north-1`
-
-### EC2 instance doesn't boot
-- Check instance logs: `aws ec2 get-console-output --instance-id <id> --region eu-north-1`
-- Verify IAM role permissions
-- Check security group rules allow outbound traffic
-
-### No pods in hitachi-sds namespace
-- Ensure EC2 instance is accessible from the cluster
-- Check if operators were installed: `kubectl get pods -n hitachi-system`
-- Verify network connectivity between EC2 and cluster
-
-### Monitoring script shows no pods
-- Operators may still be installing
-- Check Helm release: `helm list -A`
-- View deployment logs: `kubectl logs -n hitachi-system -l app=hitachi-operator`
-
-## Related Commands
-
-```bash
-# View EC2 instances
-aws ec2 describe-instances --region eu-north-1 --query 'Reservations[*].Instances[*].[InstanceId,InstanceType,State.Name,PublicIpAddress]' --output table
-
-# Connect to EC2 instance
-ssh -i /tmp/nlevanon-key.pem ec2-user@<PUBLIC_IP>
-
-# Delete infrastructure (caution!)
-aws cloudformation delete-stack --stack-name hitachi-sds-block-gpfs-levanon-c4qpp --region eu-north-1
-
-# View Kubernetes cluster info
-kubectl cluster-info
-kubectl get nodes
-kubectl get all -n hitachi-sds
-```
-
-## Support
-
-For issues or questions:
-1. Check the logs: `Temp/*.log`
-2. Run the monitoring script for current status
-3. Check AWS CloudFormation events
-4. Verify Kubernetes cluster connectivity
-5. Review operator deployment logs in hitachi-system namespace
 
 ---
 
-## Complete Script-Based Workflow
+## 🐛 Debugging
 
-All successful operations have been refactored into scripts:
+### View Script Output
+```bash
+# Run with verbose output
+bash -x ./scripts/deployment/deploy-hitachi-operator.sh
 
-### ✓ Scripts Available:
-- `allocate-eip.sh` - Allocate and attach Elastic IP
-- `deploy-hitachi-operator.sh` - Deploy HSPC operator via Helm  
-- `deploy-sds-block.sh` - Deploy EC2 infrastructure
-- `prepare-namespaces.sh` - Prepare Kubernetes namespaces
-- `hitachi-complete-setup.sh` - Orchestrate all phases
+# Capture to file
+./scripts/deployment/deploy-hitachi-operator.sh > deploy.log 2>&1
+```
 
-### ✓ Makefile Targets:
-- `make hitachi-complete-setup` - Run full setup
-- `make hitachi-prepare-ns` - Prepare namespaces
-- `make hitachi-deploy-operator` - Deploy operator
-- `make hitachi-allocate-eip` - Allocate EIP
+### Check Script Logs
+```bash
+# View Logs directory
+ls -la Logs/
 
-### Automation Benefits:
-✓ Reproducible deployments
-✓ Error handling and validation
-✓ Progress feedback and logging
-✓ Rollback capability on errors
-✓ Self-contained operation documentation
+# Real-time log monitoring
+tail -f Logs/hitachi-deployment-*.log
+```
+
+### Common Issues
+
+**"Command not found"**
+- Ensure script is executable: `chmod +x scripts/deployment/*.sh`
+- Check script path is correct
+
+**"Permission denied"**
+- Check kubeconfig permissions
+- Verify AWS credentials
+- Ensure IAM permissions
+
+**"Cluster not accessible"**
+- Set KUBECONFIG: `export KUBECONFIG=./ocp_install_files/auth/kubeconfig`
+- Verify kubectl: `kubectl cluster-info`
+
+---
+
+## 📝 Best Practices
+
+1. **Always run validation first**
+   ```bash
+   ./scripts/validation/check-network-connectivity.sh
+   ```
+
+2. **Use dry-run mode when available**
+   ```bash
+   ./scripts/utilities/cleanup-hitachi-sds-force.sh --dry-run
+   ```
+
+3. **Monitor deployment progress**
+   ```bash
+   ./scripts/monitoring/monitor-hitachi-deployment.sh
+   ```
+
+4. **Save logs for debugging**
+   ```bash
+   ./scripts/deployment/deploy-hitachi-operator.sh > deploy.log 2>&1
+   ```
+
+5. **Test after deployment**
+   ```bash
+   ./scripts/validation/hitachi-test-csi.sh
+   ```
+
+---
+
+## 🔗 Related Documentation
+
+For more details, see:
+- `docs/hitachi/` - Complete documentation
+- `playbooks/` - Ansible playbooks
+- `Makefile` - Build and deployment targets
+
+---
+
+## ⚙️ Script Dependencies
+
+```
+QUICK_START_DEPLOYMENT.sh
+├── deployment/prepare-namespaces.sh
+├── deployment/deploy-sds-block.sh
+├── deployment/deploy-hitachi-operator-disconnected.sh
+├── deployment/hitachi-complete-setup.sh
+├── validation/hitachi-verify-install.sh
+└── monitoring/check-deployment-status.sh
+
+hitachi-complete-setup.sh
+├── deployment/prepare-hitachi-namespace.sh
+├── deployment/allocate-eip.sh
+├── utilities/download-hitachi-charts.sh
+└── deployment/deploy-hitachi-operator-disconnected.sh
+```
+
+---
+
+## 📚 Additional Resources
+
+- Hitachi VSP One SDS Documentation: [docs/hitachi/INDEX.md](../hitachi/INDEX.md)
+- Playbook Documentation: [docs/hitachi/architecture/](../hitachi/architecture/)
+- Makefile Targets: See `make help`
+
+---
+
+**Last Updated:** December 14, 2025

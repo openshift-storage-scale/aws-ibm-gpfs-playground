@@ -14,48 +14,111 @@ This repository automates the deployment of an OpenShift cluster on AWS with IBM
 
 ## Tear up
 
-Here are the steps to deploy OCP + GPFS. These steps will create an OCP
-cluster with 3 master + 3 workers by default and then will create a multi-attach
-EBS volume and attach it to the three workers.
+Here are the steps to deploy OCP with your choice of storage backend.
 
-1. Make sure you have the right ansible dependencies via `ansible-galaxy collection install -r requirements.yml` and also that you have the httpd tools installed
-   (httpd-tools on Fedora or `brew install httpd` on MacOS)
-2. Make sure your aws credentials and aws cli are in place and working
-3. Make sure you have redhat tokens which enable downloads, token can be obtained at https://console.redhat.com/openshift/downloads
-4. Copy the token to ~/.pullsecret.json. The file should be in the following format:
+### Available Deployment Options
 
-```
-{
-  "auths": {
-    "cloud.openshift.com": {
-      "auth": "YOUR_TOKEN_HERE",
-      "email": "you@example.com"
-    },
-    "quay.io": {
-      "auth": "YOUR_TOKEN_HERE",
-      "email": "you@example.com"
-    },
-    "registry.redhat.io": {
-      "auth": "YOUR_TOKEN_HERE",
-      "email": "you@example.com"
-    }
-  }
-}
-```
+| Command | What It Installs | Duration |
+|---------|-----------------|----------|
+| `make install` | OCP + IBM GPFS (Spectrum Scale) | ~40-45 min |
+| `make install-hitachi` | OCP + Hitachi HSPC Operator | ~40-45 min |
+| `make install-hitachi-with-sds` | OCP + Hitachi SDS Block + HSPC Operator | ~40-45 min (+ SDS setup) |
 
-5. Run the following to create an `overrides.yml`.
+### Prerequisites
 
-```
+1. **Ansible dependencies**: 
+   ```bash
+   ansible-galaxy collection install -r requirements.yml
+   ```
+   
+2. **HTTP tools** (for htpasswd):
+   - **Fedora**: `dnf install httpd-tools`
+   - **macOS**: `brew install httpd`
+
+3. **AWS credentials and CLI**: Ensure AWS credentials are configured and working
+   
+   The playbooks assume AWS credentials are configured in `~/.aws/`. Two files are required:
+   
+   **~/.aws/credentials** - Contains AWS access keys:
+   ```ini
+   [default]
+   aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+   aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+   
+   [other-profile]
+   aws_access_key_id = AKIAIOSFODNN7EXAMPLE2
+   aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY2
+   ```
+   
+   **~/.aws/config** - Contains AWS region configuration:
+   ```ini
+   [default]
+   region = eu-north-1
+   output = json
+   
+   [profile other-profile]
+   region = us-east-1
+   output = json
+   ```
+   
+   Then test your credentials:
+   ```bash
+   aws sts get-caller-identity  # Test your credentials
+   ```
+   
+   The scripts use the "default" profile by default. To use a different profile, set `aws_profile: "your-profile-name"` in `overrides.yml`.
+
+4. **RedHat pull secret**: Download from https://console.redhat.com/openshift/downloads
+   - Copy to `~/.pullsecret.json`
+   - Format should match the example below
+
+5. **Pull Secret File Format**:
+   ```json
+   {
+     "auths": {
+       "cloud.openshift.com": {
+         "auth": "YOUR_TOKEN_HERE",
+         "email": "you@example.com"
+       },
+       "quay.io": {
+         "auth": "YOUR_TOKEN_HERE",
+         "email": "you@example.com"
+       },
+       "registry.redhat.io": {
+         "auth": "YOUR_TOKEN_HERE",
+         "email": "you@example.com"
+       }
+     }
+   }
+   ```
+
+### Installation Steps
+
+#### Step 1: Create `overrides.yml`
+
+```bash
 cat << EOF > overrides.yml
-# ocp_domain: "fusionaccess.devcluster.openshift.com"
+# Cluster identification
 ocp_cluster_name: "gpfs-<your-user-name>"
 gpfs_volume_name: "<your-user-name>-volume"
+
+# AWS Configuration
+# Note: aws_profile is REQUIRED for all deployments
+# aws_ec2_key_name and aws_vpc_id are ONLY needed for Hitachi SDS deployments
+aws_profile: "default"
+
+# ONLY REQUIRED FOR HITACHI SDS BLOCK DEPLOYMENTS:
+# Uncomment these only if running: make install-hitachi-with-sds
+# aws_ec2_key_name: "your-actual-key-pair"      # EC2 key pair name
+# aws_vpc_id: "vpc-0123456789abcdef0"          # VPC ID from AWS Console
+
+# Network Configuration (optional - uncomment to customize)
+# ocp_az: "eu-north-1b"
+# ocp_region: "eu-north-1"
 # ocp_worker_count: 3
 # ocp_worker_type: "m5.2xlarge"
 # ocp_master_count: 3
 # ocp_master_type: "m5.2xlarge"
-# ocp_az: "eu-central-1a"
-# ocp_region: "eu-central-1"
 
 # Operator configuration (stable for production, alpha for development)
 # operator_catalog_tag: stable
@@ -65,50 +128,186 @@ gpfs_volume_name: "<your-user-name>-volume"
 # GPFS version (must match what the operator supports)
 # gpfs_cnsa_version: "v5.2.3.1"
 
-# ssh_pubkey: "ssh-ed25519 AAAAC3... john.doe@rh.com"
+# SSH public key (optional)
+# ssh_pubkey: "ssh-ed25519 AAAAC3... your-email@example.com"
 EOF
 ```
 
-Change it by uncommenting and tweaking at least the following lines.
+#### Step 2: Download OCP Client Tools
 
-- `ocp_domain`
-- `ocp_cluster_name`
-- `gpfs_volume_name`
-- `ocp_az`
-- `ocp_region`
+```bash
+make ocp-clients
+```
 
-**For alpha operator (development/unreleased versions):**
-- Set `operator_catalog_tag: alpha` and `operator_channel: alpha`
-- Set `pullsecret_extra_file` to point to your alpha registry credentials file (default: `~/.tokens/pull-secret-extra.txt`)
-- Update `gpfs_cnsa_version` to match the operator's supported version
-- Create the pull secret file with alpha registry credentials in dockerconfigjson format:
-  ```json
-  {
-    "quay.io/openshift-storage-scale": {
-      "auth": "base64-encoded-username:password",
-      "email": ""
-    }
-  }
-  ```
-  Note: The `auth` field should contain base64-encoded credentials in the format `username:password`
+This downloads the OCP and openshift-install binaries matching your configured version.  
+Add the path to your `$PATH` if needed:
+```bash
+export PATH="$HOME/aws-gpfs-playground/<ocp_version>:$PATH"
+```
 
-6. Make sure you read `group_vars/all` and have all the files with the secret material done.
-7. Run `make ocp-clients`. This will download the needed oc and openshift-install version in your home folder under ~/aws-gpfs-playground/<ocp_version>. You might need to add this path to your bash PATH or copy it to the /usr/bin folder.
+#### Step 3: Review Configuration
 
-8. Run `make install` to install the openshift-fusion-access operator
-   
-   > **⏱️ Execution Time:** The `make install` process takes approximately **40-45 minutes** to complete.  
-   > Based on historical runs, expect the cluster installation step alone to take around 40-44 minutes.  
-   > This is normal and includes provisioning AWS infrastructure, bootstrapping OpenShift, and configuring the cluster.
+Check `group_vars/all` and ensure all required variables are set correctly.
 
-9. Once the installation is complete, you can retrieve the cluster access information from the installation log file located at:
-   ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
+### Why Different Variables for Different Deployments?
 
-Look for the section in the log after the "Install complete!" message. The log will contain the following key details:
+Both `make install` and `make install-hitachi-with-sds` create EC2 instances and infrastructure on AWS. However, they differ in how they create them:
 
-- KUBECONFIG File Path: The path for the Kube Config file.
-- OpenShift web-console: The URL for the OpenShift web console in AWS.
-- Login Credentials: The username and password to log in to the web console.
+| Variable | GPFS | Hitachi HSPC | Hitachi SDS Block | Purpose |
+|----------|------|--------------|-------------------|---------|
+| `aws_profile` | ✅ Required | ✅ Required | ✅ Required | AWS CLI profile for authentication |
+| `aws_ec2_key_name` | ❌ Not needed | ❌ Not needed | ✅ **Required** | EC2 key pair to SSH into the additional SDS Block instance |
+| `aws_vpc_id` | ❌ Not needed | ❌ Not needed | ✅ **Required** | VPC ID to place the additional SDS Block instance in same network as OCP |
+
+**Why?**
+
+- **`make install` (OCP + GPFS)**:
+  - Creates 3 master EC2 instances + 3 worker EC2 instances (configurable)
+  - Uses **OpenShift Installer**, which automatically creates all infrastructure via CloudFormation
+  - OpenShift installer reads VPC/subnet info from AWS account
+  - Only needs `aws_profile` - the installer handles everything else
+  
+- **`make install-hitachi` (OCP + Hitachi HSPC only)**:
+  - Creates same 3 master + 3 worker EC2 instances
+  - Uses OpenShift Installer (same as above)
+  - Only needs `aws_profile` - same as `make install`
+  
+- **`make install-hitachi-with-sds` (OCP + Hitachi SDS Block)**:
+  - Creates 3 master + 3 worker EC2 instances (via OpenShift Installer, using `aws_profile` only)
+  - **ADDITIONALLY** creates a 4th EC2 instance for Hitachi SDS Block appliance
+  - SDS Block instance needs: `aws_ec2_key_name` (to SSH and configure it) and `aws_vpc_id` (to place it in same VPC)
+  - SDS Block CloudFormation template must be deployed separately after OCP cluster creation
+
+#### Step 4: Deploy Your Chosen Stack
+
+**For OCP + IBM GPFS:**
+```bash
+make install
+```
+
+**For OCP + Hitachi HSPC Operator (without SDS Block):**
+```bash
+make install-hitachi
+```
+
+#### Automatic AWS Resource Creation for Hitachi SDS Block
+
+The `make install-hitachi-with-sds` command **automatically creates or discovers** the required AWS resources. You don't need to manually configure them!
+
+**What the automation does:**
+
+1. **EC2 Key Pair (`aws_ec2_key_name`)**:
+   - If you don't provide one, it will:
+     - Check if you have existing key pairs in your region
+     - Use the first available key pair, OR
+     - Create a new one automatically named: `<cluster-name>-sds-key`
+     - Save the private key to `~/.ssh/<cluster-name>-sds-key.pem`
+
+2. **VPC ID (`aws_vpc_id`)**:
+   - If you don't provide one, it will:
+     - Automatically detect and use your default VPC, OR
+     - Fail with helpful instructions if no default VPC exists
+
+**Quick Start (Recommended):**
+
+Simply run (no configuration needed!):
+```bash
+make install-hitachi-with-sds
+```
+
+The playbook will:
+- ✅ Auto-create EC2 key pair if needed
+- ✅ Auto-detect default VPC
+- ✅ Print the resources it's using
+- ✅ Proceed with deployment
+
+**Override Defaults (Optional):**
+
+If you want to specify custom resources instead of letting automation handle it, you can configure them in `overrides.yml`:
+
+```yaml
+# Optional: Specify specific EC2 key pair (must exist)
+aws_ec2_key_name: "my-existing-key"
+
+# Optional: Specify specific VPC (must exist)
+aws_vpc_id: "vpc-0123456789abcdef0"
+```
+
+#### Manual AWS Resource Discovery (for reference)
+
+If you want to manually find or create these resources instead of letting automation handle it:
+
+##### Finding Your `aws_vpc_id`
+
+**Option A: Use your existing default VPC**
+```bash
+aws ec2 describe-vpcs \
+  --filters Name=isDefault,Values=true \
+  --query 'Vpcs[0].VpcId' \
+  --profile default \
+  --output text
+```
+
+**Option B: List all VPCs and choose one**
+```bash
+aws ec2 describe-vpcs \
+  --profile default \
+  --query 'Vpcs[*].[VpcId,Tags[?Key==`Name`].Value|[0]]' \
+  --output table
+```
+
+##### Finding or Creating Your `aws_ec2_key_name`
+
+**Option A: List existing key pairs**
+```bash
+aws ec2 describe-key-pairs \
+  --profile default \
+  --region eu-north-1 \
+  --query 'KeyPairs[*].KeyName' \
+  --output table
+```
+
+**Option B: Create a new key pair**
+```bash
+aws ec2 create-key-pair \
+  --key-name my-new-sds-key \
+  --profile default \
+  --region eu-north-1 \
+  --query 'KeyMaterial' \
+  --output text > ~/my-new-sds-key.pem
+
+chmod 600 ~/my-new-sds-key.pem
+```
+
+Then add these to `overrides.yml`:
+```yaml
+aws_ec2_key_name: "my-new-sds-key"
+aws_vpc_id: "vpc-0123456789abcdef0"
+```
+
+> **⏱️ Execution Time:** Installation takes approximately **40-45 minutes** to complete.  
+> This includes AWS infrastructure provisioning, OpenShift bootstrapping, and cluster configuration.
+
+9. **Retrieve Cluster Access Information**
+
+Once the installation is complete, find your cluster credentials:
+```bash
+# View the installation log
+cat ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log | grep -A 20 "Install complete!"
+```
+
+The log will contain:
+````
+- **KUBECONFIG** path: `auth/kubeconfig`
+- **Web Console URL**: `https://console-openshift-console.apps.<cluster>.<domain>`
+- **Login credentials**: `kubeadmin` username with password from log
+
+10. **Login to Your Cluster**
+
+```bash
+export KUBECONFIG=~/aws-gpfs-playground/ocp_install_files/auth/kubeconfig
+oc login -u kubeadmin -p <password> https://api.<cluster>.<domain>:6443
+```
 
 ## Architecture
 
@@ -130,17 +329,51 @@ The deployment now uses the **FileSystemClaim** controller pattern:
 - **Test namespace**: `ibm-test-deployment` (with writer/reader deployments)
 - **StorageClass**: `filesystemclaim-sample` (RWX persistent volumes)
 
-## Tear down
+## Cleanup and Tear Down
 
-To delete the cluster and the EBS volume, run `make destroy`
+### Destroy Entire Cluster
+
+To delete the OCP cluster and all associated AWS resources (including SDS Block if deployed):
+
+```bash
+make destroy
+```
+
+This will:
+1. Automatically detect if Hitachi SDS Block was deployed
+2. Clean up SDS Block resources (EC2 instances, CloudFormation stacks, volumes)
+3. Destroy the OpenShift cluster
+4. Remove all AWS infrastructure
+
+### Delete GPFS Objects (without destroying cluster)
+
+To remove only GPFS-related objects while keeping the cluster running:
+
+```bash
+make gpfs-cleanup
+```
+
+This removes:
+- FileSystemClaim resources
+- GPFS filesystem configurations
+- Test deployments
+- FusionAccess CR
+
+### Other Cleanup Operations
+
+**Remove iSCSI resources** (if deployed):
+```bash
+make iscsi-cleanup
+```
+
+**Remove EBS volumes** (if added separately):
+```bash
+EXTRA_VARS="-e volume_id=vol-0123456789abcdef0" make ebs-remove
+```
 
 ## Health Check
 
 Run `make gpfs-health` to run some GPFS healthcheck commands
-
-## Delete GPFS objects
-
-Run `make gpfs-cleanup` to remove all the gpfs objects (FileSystemClaim, test deployments, FusionAccess CR, etc.)
 
 ## Add a new EBS volume to a running OCP cluster
 

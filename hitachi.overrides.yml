@@ -1,7 +1,10 @@
 # Hitachi VSP One SDS Configuration
 
 # AWS Infrastructure
+aws_profile: "default"                   # AWS CLI profile to use
 aws_region: us-east-1
+aws_ec2_key_name: "your-ec2-key-pair"   # REQUIRED: EC2 key pair name for SSH access
+aws_vpc_id: "vpc-xxxxxxxxx"             # REQUIRED: VPC ID where SDS Block will be deployed
 aws_instance_type: m5.2xlarge
 hitachi_node_count: 3
 hitachi_root_volume_size: 100  # GB
