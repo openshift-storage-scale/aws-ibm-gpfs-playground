@@ -635,17 +635,9 @@
       ansible.builtin.set_fact:
         cf_response_is_list: "{{ cf_stack_final.cloudformation[sds_stack_name] is sequence }}"
     
-    - name: Extract final stack status safely
-      block:
-        - name: Extract status from list format
-          ansible.builtin.set_fact:
-            cf_final_stack_status: "{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_status }}"
-          when: cf_response_is_list | bool
-        
-        - name: Extract status from dict format
-          ansible.builtin.set_fact:
-            cf_final_stack_status: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_status }}"
-          when: not (cf_response_is_list | bool)
+    - name: Extract final stack status (using Python to avoid variable evaluation issues)
+      ansible.builtin.set_fact:
+        cf_final_stack_status: "{% if cf_response_is_list %}{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_status }}{% else %}{{ cf_stack_final.cloudformation[sds_stack_name].stack_status }}{% endif %}"
     
     - name: Verify CloudFormation stack completed successfully
       ansible.builtin.assert:
@@ -656,17 +648,9 @@
           Current status: {{ cf_final_stack_status }}
         success_msg: "✅ CloudFormation stack completed: {{ cf_final_stack_status }}"
     
-    - name: Extract CloudFormation outputs safely
-      block:
-        - name: Extract outputs from list format
-          ansible.builtin.set_fact:
-            sds_outputs: "{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
-          when: cf_response_is_list | bool
-        
-        - name: Extract outputs from dict format
-          ansible.builtin.set_fact:
-            sds_outputs: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
-          when: not (cf_response_is_list | bool)
+    - name: Extract CloudFormation outputs
+      ansible.builtin.set_fact:
+        sds_outputs: "{% if cf_response_is_list %}{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}{% else %}{{ cf_stack_final.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}{% endif %}"
 
 # ======================================================================
 # Phase 7: Retrieve SDS Block Access Information
