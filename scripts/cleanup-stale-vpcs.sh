@@ -22,6 +22,22 @@ for vpc_id in $all_vpcs; do
     
     echo "🗑️  Found stale VPC: $vpc_id ($vpc_name) - cleaning up..."
     
+    # Disassociate and release Elastic IPs associated with this VPC
+    echo "  🔄 Disassociating Elastic IPs..."
+    assoc_ids=$(aws ec2 describe-addresses --region $REGION --query "Addresses[*].AssociationId" --output text 2>/dev/null)
+    for assoc_id in $assoc_ids; do
+      if [ "$assoc_id" != "None" ]; then
+        aws ec2 disassociate-address --association-id $assoc_id --region $REGION 2>/dev/null && echo "    ✓ Disassociated EIP $assoc_id" || true
+      fi
+    done
+    
+    # Release all unassociated Elastic IPs
+    echo "  🔄 Releasing Elastic IPs..."
+    alloc_ids=$(aws ec2 describe-addresses --region $REGION --query 'Addresses[*].AllocationId' --output text 2>/dev/null)
+    for alloc_id in $alloc_ids; do
+      aws ec2 release-address --allocation-id $alloc_id --region $REGION 2>/dev/null && echo "    ✓ Released EIP $alloc_id" || true
+    done
+    
     # Delete subnets
     subnets=$(aws ec2 describe-subnets --region $REGION --filters "Name=vpc-id,Values=$vpc_id" --query 'Subnets[*].SubnetId' --output text)
     for subnet in $subnets; do
@@ -33,12 +49,6 @@ for vpc_id in $all_vpcs; do
     for igw in $igws; do
       aws ec2 detach-internet-gateway --internet-gateway-id $igw --vpc-id $vpc_id --region $REGION 2>/dev/null || true
       aws ec2 delete-internet-gateway --internet-gateway-id $igw --region $REGION 2>/dev/null && echo "  ✓ Deleted IGW $igw" || true
-    done
-    
-    # Release elastic IPs
-    alloc_ids=$(aws ec2 describe-addresses --region $REGION --filters "Name=vpc-id,Values=$vpc_id" "Name=association-id,Values=null" --query 'Addresses[*].AllocationId' --output text)
-    for alloc_id in $alloc_ids; do
-      aws ec2 release-address --allocation-id $alloc_id --region $REGION 2>/dev/null && echo "  ✓ Released EIP $alloc_id" || true
     done
     
     # Delete route tables (except main)
