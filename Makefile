@@ -127,6 +127,33 @@ ebs-add: ## Adds a new EBS volume via ebs-add.yml.
 ebs-remove: ## Removes an existing EBS volume via ebs-remove.yml.
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ebs-remove.yml
 
+.PHONY: ocp-bootstrap-cleanup
+ocp-bootstrap-cleanup: ## Clean up OCP bootstrap artifacts to allow re-running openshift-install
+	@echo "🧹 Cleaning up OCP bootstrap artifacts..."
+	@(pkill -9 -f "cluster-api|envtest" 2>/dev/null || true) &
+	@sleep 2
+	@rm -f ~/aws-gpfs-playground/ocp_install_files/metadata.json
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/cluster-api
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/.clusterapi_output
+	@echo "✅ OCP bootstrap cleanup complete"
+	@echo "📝 You can now run: make install-hitachi or make install-hitachi-with-sds"
+
+.PHONY: ocp-bootstrap-full-cleanup
+ocp-bootstrap-full-cleanup: ## Full OCP cleanup - removes all installation artifacts and allows fresh deployment
+	@echo "🧹 Performing full OCP bootstrap cleanup..."
+	@(pkill -9 -f "cluster-api|envtest" 2>/dev/null || true) &
+	@sleep 2
+	@rm -f ~/aws-gpfs-playground/ocp_install_files/metadata.json
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/cluster-api
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/.clusterapi_output
+	@rm -f ~/aws-gpfs-playground/ocp_install_files/.openshift_install.log
+	@rm -f ~/aws-gpfs-playground/ocp_install_files/.openshift_install_state.json
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/auth
+	@rm -rf ~/aws-gpfs-playground/ocp_install_files/tls
+	@echo "✅ Full OCP bootstrap cleanup complete"
+	@echo "⚠️  WARNING: All OCP credentials and auth files have been removed"
+	@echo "📝 You can now run: make install-hitachi or make install-hitachi-with-sds for a fresh deployment"
+
 ##@ Hitachi SDS Targets
 -include Makefile.hitachi
 
