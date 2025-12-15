@@ -38,6 +38,13 @@ for vpc_id in $all_vpcs; do
       aws ec2 release-address --allocation-id $alloc_id --region $REGION 2>/dev/null && echo "    ✓ Released EIP $alloc_id" || true
     done
     
+    # Delete orphaned network interfaces (ENIs not attached to instances)
+    echo "  🔄 Deleting orphaned network interfaces..."
+    enis=$(aws ec2 describe-network-interfaces --region $REGION --filters "Name=vpc-id,Values=$vpc_id" "Name=status,Values=available,in-use" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text)
+    for eni in $enis; do
+      aws ec2 delete-network-interface --network-interface-id $eni --region $REGION 2>/dev/null && echo "    ✓ Deleted ENI $eni" || true
+    done
+    
     # Delete subnets
     subnets=$(aws ec2 describe-subnets --region $REGION --filters "Name=vpc-id,Values=$vpc_id" --query 'Subnets[*].SubnetId' --output text)
     for subnet in $subnets; do
