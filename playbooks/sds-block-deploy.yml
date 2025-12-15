@@ -467,22 +467,28 @@
       ansible.builtin.set_fact:
         stack_exists: "{{ cf_stack_info.cloudformation is defined and sds_stack_name in cf_stack_info.cloudformation }}"
     
-    - name: Extract stack status from list format
-      ansible.builtin.set_fact:
-        stack_status: "{{ cf_stack_info.cloudformation[sds_stack_name][0].stack_status }}"
-      when:
-        - stack_exists | bool
-        - cf_stack_info.cloudformation[sds_stack_name] is iterable
-        - cf_stack_info.cloudformation[sds_stack_name] | length > 0
-      ignore_errors: true
-    
-    - name: Extract stack status from dict format
-      ansible.builtin.set_fact:
-        stack_status: "{{ cf_stack_info.cloudformation[sds_stack_name].stack_status }}"
-      when:
-        - stack_exists | bool
-        - cf_stack_info.cloudformation[sds_stack_name] is mapping
-      ignore_errors: true
+    - name: Extract stack status safely
+      block:
+        - name: Check response format
+          ansible.builtin.set_fact:
+            is_stack_list_format: "{{ cf_stack_info.cloudformation[sds_stack_name] is sequence and cf_stack_info.cloudformation[sds_stack_name] | length > 0 }}"
+          when: stack_exists | bool
+        
+        - name: Extract status from list format
+          ansible.builtin.set_fact:
+            stack_status: "{{ cf_stack_info.cloudformation[sds_stack_name][0].stack_status }}"
+          when:
+            - stack_exists | bool
+            - is_stack_list_format | bool
+          ignore_errors: true
+        
+        - name: Extract status from dict format
+          ansible.builtin.set_fact:
+            stack_status: "{{ cf_stack_info.cloudformation[sds_stack_name].stack_status }}"
+          when:
+            - stack_exists | bool
+            - not (is_stack_list_format | bool)
+          ignore_errors: true
     
     - name: Display stack status
       ansible.builtin.debug:
@@ -553,6 +559,48 @@
       ManagedBy: openshift-storage-scale
   register: cf_stack_result
   timeout: 1200
+  failed_when: false
+  ignore_errors: true
+
+- name: Check CloudFormation stack creation status
+  tags:
+    - 5_cloudformation
+  block:
+    - name: Debug CloudFormation result
+      ansible.builtin.debug:
+        var: cf_stack_result
+        verbosity: 2
+    
+    - name: Get CloudFormation stack events for error details
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ sds_stack_name }}"
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: cf_stack_info_after
+      when: cf_stack_result.failed | default(false) or cf_stack_result.output == "Stack create failed. Delete complete."
+    
+    - name: Extract stack events that show the error
+      ansible.builtin.debug:
+        msg: |
+          CloudFormation Stack Events:
+          {% for stack_name, stack_data in cf_stack_info_after.cloudformation.items() %}
+            Stack: {{ stack_name }}
+            Status: {{ stack_data.stack_status if stack_data is mapping else stack_data[0].stack_status }}
+          {% endfor %}
+      when: cf_stack_info_after is defined and cf_stack_info_after.cloudformation is defined
+    
+    - name: Fail with detailed error message
+      ansible.builtin.fail:
+        msg: |
+          CloudFormation stack creation failed!
+          
+          Result Status: {{ cf_stack_result.failed }}
+          Result Output: {{ cf_stack_result.output | default('No output') }}
+          Result Log: {{ cf_stack_result.log | default('No log') }}
+          
+          Please check AWS CloudFormation console or run:
+          aws cloudformation describe-stack-events --stack-name {{ sds_stack_name }} --region {{ ocp_region }} --profile {{ aws_profile }}
+      when: cf_stack_result.failed | default(false) or cf_stack_result.output | default('') == "Stack create failed. Delete complete."
 
 - name: Display CloudFormation stack creation result
   tags:
@@ -563,6 +611,7 @@
       Stack Name: {{ sds_stack_name }}
       Stack Status: {{ cf_stack_result.stack_resources[0].status if cf_stack_result.stack_resources is defined else 'Unknown' }}
       Timestamp: {{ cf_stack_result.stack_resources[0].last_updated_time if cf_stack_result.stack_resources is defined else 'Unknown' }}
+  when: cf_stack_result.succeeded | default(false)
 
 # ======================================================================
 # Phase 6: Wait for Stack Completion
@@ -571,37 +620,53 @@
   tags:
     - 6_wait
   block:
-    - name: Check CloudFormation stack status repeatedly
+    - name: Pause briefly to let CloudFormation settle
+      ansible.builtin.pause:
+        seconds: 5
+    
+    - name: Get final CloudFormation stack status
       amazon.aws.cloudformation_info:
         stack_name: "{{ sds_stack_name }}"
         region: "{{ ocp_region }}"
         profile: "{{ aws_profile }}"
-      register: cf_stack_status_check
-      until: |
-        (cf_stack_status_check.cloudformation[sds_stack_name] is iterable and
-         cf_stack_status_check.cloudformation[sds_stack_name] | length > 0 and
-         cf_stack_status_check.cloudformation[sds_stack_name][0].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']) or
-        (cf_stack_status_check.cloudformation[sds_stack_name] is mapping and
-         cf_stack_status_check.cloudformation[sds_stack_name].stack_status is defined and
-         cf_stack_status_check.cloudformation[sds_stack_name].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
-      retries: 120
-      delay: 10
+      register: cf_stack_final
     
-    - name: Extract final stack status
+    - name: Detect CloudFormation response format
       ansible.builtin.set_fact:
-        cf_final_stack_status: "{{ cf_stack_status_check.cloudformation[sds_stack_name][0].stack_status 
-                                    if cf_stack_status_check.cloudformation[sds_stack_name] is iterable and cf_stack_status_check.cloudformation[sds_stack_name] | length > 0
-                                    else cf_stack_status_check.cloudformation[sds_stack_name].stack_status }}"
+        cf_response_is_list: "{{ cf_stack_final.cloudformation[sds_stack_name] is sequence }}"
     
-    - name: Display final stack status
-      ansible.builtin.debug:
-        msg: "CloudFormation stack completed with status: {{ cf_final_stack_status }}"
+    - name: Extract final stack status safely
+      block:
+        - name: Extract status from list format
+          ansible.builtin.set_fact:
+            cf_final_stack_status: "{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_status }}"
+          when: cf_response_is_list | bool
+        
+        - name: Extract status from dict format
+          ansible.builtin.set_fact:
+            cf_final_stack_status: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_status }}"
+          when: not (cf_response_is_list | bool)
     
-    - name: Extract CloudFormation outputs
-      ansible.builtin.set_fact:
-        sds_outputs: "{{ cf_stack_status_check.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value')
-                          if cf_stack_status_check.cloudformation[sds_stack_name] is iterable and cf_stack_status_check.cloudformation[sds_stack_name] | length > 0
-                          else cf_stack_status_check.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
+    - name: Verify CloudFormation stack completed successfully
+      ansible.builtin.assert:
+        that:
+          - cf_final_stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
+        fail_msg: |
+          CloudFormation stack failed to complete.
+          Current status: {{ cf_final_stack_status }}
+        success_msg: "✅ CloudFormation stack completed: {{ cf_final_stack_status }}"
+    
+    - name: Extract CloudFormation outputs safely
+      block:
+        - name: Extract outputs from list format
+          ansible.builtin.set_fact:
+            sds_outputs: "{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
+          when: cf_response_is_list | bool
+        
+        - name: Extract outputs from dict format
+          ansible.builtin.set_fact:
+            sds_outputs: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
+          when: not (cf_response_is_list | bool)
 
 # ======================================================================
 # Phase 7: Retrieve SDS Block Access Information
