@@ -36,10 +36,50 @@
       ansible.builtin.debug:
         msg: "Skipping SDS Block destruction - using direct terraform destruction of all resources"
 
+    # ======================================================================
+    # Phase 0A: Clean up orphaned security group rules (CRITICAL)
+    # ======================================================================
+    # This phase addresses circular dependencies created by failed OCP deployments.
+    # Security groups may have cross-references that prevent deletion.
+    # See: docs/CIRCULAR_DEPENDENCIES.md
+    # Reference: https://github.com/openshift-storage-scale/aws-ibm-gpfs-playground/issues/XXXX
+
     - name: Check for OpenShift metadata
       ansible.builtin.stat:
         path: "{{ ocpfolder }}/metadata.json"
       register: metadata_json_file
+
+    - name: Display SG cleanup notice
+      ansible.builtin.debug:
+        msg: |
+          Preparing to revoke security group rules to break circular dependencies.
+          This allows proper cleanup of failed deployment artifacts.
+      when: metadata_json_file.stat.exists
+
+    - name: Execute security group rule revocation
+      block:
+        - name: Run SG rule revocation script
+          ansible.builtin.script:
+            cmd: "{{ basefolder }}/scripts/revoke-sg-rules.sh {{ ocp_region }}"
+          environment:
+            AWS_PROFILE: "{{ aws_profile }}"
+          register: sg_cleanup_result
+          failed_when: false
+          when: metadata_json_file.stat.exists
+
+        - name: Display SG cleanup results
+          ansible.builtin.debug:
+            msg: "{{ sg_cleanup_result.stdout_lines }}"
+          when: 
+            - metadata_json_file.stat.exists
+            - sg_cleanup_result.stdout_lines is defined
+      rescue:
+        - name: Warn about SG cleanup issues
+          ansible.builtin.debug:
+            msg: |
+              ⚠️  Warning: Security group rule revocation had issues.
+              This may cause delays in VPC cleanup after OCP destruction.
+              Continuing with OCP cluster destruction.
 
     - name: Find OpenShift EC2 Instances
       amazon.aws.ec2_instance_info:
