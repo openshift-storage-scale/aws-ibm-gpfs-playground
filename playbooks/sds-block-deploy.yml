@@ -539,6 +539,7 @@
       DataSubnetId: "{{ sds_data_subnet_id }}"
       ControlSubnetCidrBlock: "{{ sds_control_subnet_cidr }}"
       DataSubnetCidrBlock: "{{ sds_data_subnet_cidr }}"
+      AvailabilityZone: "{{ sds_control_az }}"
       SDSBlockImageId: "{{ sds_ami_id }}"
       SDSBlockRootVolumeSize: "{{ sds_root_volume_size }}"
       SDSBlockDataVolumeSize: "{{ sds_data_volume_size }}"
@@ -569,20 +570,38 @@
 - name: Wait for CloudFormation stack to complete
   tags:
     - 6_wait
-  amazon.aws.cloudformation_info:
-    stack_name: "{{ sds_stack_name }}"
-    region: "{{ ocp_region }}"
-    profile: "{{ aws_profile }}"
-  register: cf_stack_status
-  until: cf_stack_status.cloudformation[sds_stack_name][0].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
-  retries: 120
-  delay: 10
-
-- name: Extract CloudFormation outputs
-  tags:
-    - 6_wait
-  ansible.builtin.set_fact:
-    sds_outputs: "{{ cf_stack_status.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
+  block:
+    - name: Check CloudFormation stack status repeatedly
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ sds_stack_name }}"
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: cf_stack_status_check
+      until: |
+        (cf_stack_status_check.cloudformation[sds_stack_name] is iterable and
+         cf_stack_status_check.cloudformation[sds_stack_name] | length > 0 and
+         cf_stack_status_check.cloudformation[sds_stack_name][0].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']) or
+        (cf_stack_status_check.cloudformation[sds_stack_name] is mapping and
+         cf_stack_status_check.cloudformation[sds_stack_name].stack_status is defined and
+         cf_stack_status_check.cloudformation[sds_stack_name].stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
+      retries: 120
+      delay: 10
+    
+    - name: Extract final stack status
+      ansible.builtin.set_fact:
+        cf_final_stack_status: "{{ cf_stack_status_check.cloudformation[sds_stack_name][0].stack_status 
+                                    if cf_stack_status_check.cloudformation[sds_stack_name] is iterable and cf_stack_status_check.cloudformation[sds_stack_name] | length > 0
+                                    else cf_stack_status_check.cloudformation[sds_stack_name].stack_status }}"
+    
+    - name: Display final stack status
+      ansible.builtin.debug:
+        msg: "CloudFormation stack completed with status: {{ cf_final_stack_status }}"
+    
+    - name: Extract CloudFormation outputs
+      ansible.builtin.set_fact:
+        sds_outputs: "{{ cf_stack_status_check.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value')
+                          if cf_stack_status_check.cloudformation[sds_stack_name] is iterable and cf_stack_status_check.cloudformation[sds_stack_name] | length > 0
+                          else cf_stack_status_check.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}"
 
 # ======================================================================
 # Phase 7: Retrieve SDS Block Access Information
