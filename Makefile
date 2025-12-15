@@ -135,6 +135,8 @@ ocp-bootstrap-cleanup: ## Clean up OCP bootstrap artifacts to allow re-running o
 	@rm -f ~/aws-gpfs-playground/ocp_install_files/metadata.json
 	@rm -rf ~/aws-gpfs-playground/ocp_install_files/cluster-api
 	@rm -rf ~/aws-gpfs-playground/ocp_install_files/.clusterapi_output
+	@echo "🔄 Releasing unassociated Elastic IPs..."
+	@aws ec2 describe-addresses --region eu-north-1 --filters "Name=tag:DaysCount,Values=*" --query 'Addresses[*].AllocationId' --output text | xargs -r -I {} aws ec2 release-address --allocation-id {} --region eu-north-1 2>/dev/null || true
 	@echo "✅ OCP bootstrap cleanup complete"
 	@echo "📝 You can now run: make install-hitachi or make install-hitachi-with-sds"
 
@@ -150,6 +152,8 @@ ocp-bootstrap-full-cleanup: ## Full OCP cleanup - removes all installation artif
 	@rm -f ~/aws-gpfs-playground/ocp_install_files/.openshift_install_state.json
 	@rm -rf ~/aws-gpfs-playground/ocp_install_files/auth
 	@rm -rf ~/aws-gpfs-playground/ocp_install_files/tls
+	@echo "🔄 Releasing unassociated Elastic IPs..."
+	@aws ec2 describe-addresses --region eu-north-1 --filters "Name=tag:DaysCount,Values=*" --query 'Addresses[*].AllocationId' --output text | xargs -r -I {} aws ec2 release-address --allocation-id {} --region eu-north-1 2>/dev/null || true
 	@echo "✅ Full OCP bootstrap cleanup complete"
 	@echo "⚠️  WARNING: All OCP credentials and auth files have been removed"
 	@echo "📝 You can now run: make install-hitachi or make install-hitachi-with-sds for a fresh deployment"

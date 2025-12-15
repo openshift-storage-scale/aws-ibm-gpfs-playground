@@ -631,26 +631,28 @@
         profile: "{{ aws_profile }}"
       register: cf_stack_final
     
-    - name: Detect CloudFormation response format
+    - name: Check if stack was found
       ansible.builtin.set_fact:
-        cf_response_is_list: "{{ cf_stack_final.cloudformation[sds_stack_name] is sequence }}"
+        stack_found: "{{ sds_stack_name in cf_stack_final.cloudformation }}"
     
-    - name: Extract final stack status (using Python to avoid variable evaluation issues)
+    - name: Extract final stack status safely
       ansible.builtin.set_fact:
-        cf_final_stack_status: "{% if cf_response_is_list %}{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_status }}{% else %}{{ cf_stack_final.cloudformation[sds_stack_name].stack_status }}{% endif %}"
+        cf_final_stack_status: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_status if stack_found else 'NOT_FOUND' }}"
     
     - name: Verify CloudFormation stack completed successfully
       ansible.builtin.assert:
         that:
           - cf_final_stack_status in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
         fail_msg: |
-          CloudFormation stack failed to complete.
+          CloudFormation stack failed or was not found.
+          Stack Name: {{ sds_stack_name }}
           Current status: {{ cf_final_stack_status }}
+          Stack Found: {{ stack_found }}
         success_msg: "✅ CloudFormation stack completed: {{ cf_final_stack_status }}"
     
     - name: Extract CloudFormation outputs
       ansible.builtin.set_fact:
-        sds_outputs: "{% if cf_response_is_list %}{{ cf_stack_final.cloudformation[sds_stack_name][0].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}{% else %}{{ cf_stack_final.cloudformation[sds_stack_name].stack_outputs | items2dict(key_name='output_key', value_name='output_value') }}{% endif %}"
+        sds_outputs: "{{ cf_stack_final.cloudformation[sds_stack_name].stack_outputs | default([]) | items2dict(key_name='output_key', value_name='output_value') }}"
 
 # ======================================================================
 # Phase 7: Retrieve SDS Block Access Information

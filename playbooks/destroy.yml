@@ -32,9 +32,9 @@
     # ======================================================================
     # Phase 0: Destroy Hitachi SDS Block (if installed)
     # ======================================================================
-    - name: Run SDS Block destruction playbook
-      ansible.builtin.include_tasks: sds-block-destroy.yml
-      when: sds_installed | bool
+    - name: Display SDS destruction skip message
+      ansible.builtin.debug:
+        msg: "Skipping SDS Block destruction - using direct terraform destruction of all resources"
 
     - name: Check for OpenShift metadata
       ansible.builtin.stat:
