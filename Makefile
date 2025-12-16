@@ -11,7 +11,6 @@ ifeq ($(BAREMETAL), true)
 	EXTRA_ARGS = -e @./vars/baremetal.yaml -e @./overrides.yml 
 endif
 
-
 ##@ Common Tasks
 .PHONY: help
 help: ## This help message
@@ -67,6 +66,15 @@ gpfs-health: ## Prints some GPFS healthcheck commands
 destroy: ## Destroy installed AWS cluster
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/destroy.yml
 	-@notify.sh "AWS destroy finished"
+
+##@ AWS Stale Resources Cleanup
+.PHONY: aws-cleanup-stale-resources
+aws-cleanup-stale-resources: ## Clean up ALL stale AWS resources (Load Balancers, Target Groups, NAT Gateways, Security Groups, VPCs)
+	@bash scripts/cleanup-aws-comprehensive.sh $(OCP_REGION)
+
+.PHONY: aws-cleanup-stale-resources-dryrun
+aws-cleanup-stale-resources-dryrun: ## Preview stale resource cleanup without making changes (--dry-run mode)
+	@bash scripts/cleanup-aws-comprehensive.sh $(OCP_REGION) --dry-run
 
 .PHONY: iscsi
 iscsi: ## Creates iscsi ec2 target and connects it to worker nodes
