@@ -214,5 +214,17 @@ To remove an existing EBS volume attached to a set of EC2 instances, you can use
 
 > **Note:** You can review and customize the removal process by editing `playbooks/ebs-remove.yml`.
 
+## Cleanup of Stale AWS Resources
+
+Failed OpenShift deployments may leave behind orphaned AWS resources that block new deployments by hitting AWS hard limits.
+
+To preview and clean up stale AWS resources:
+
+```bash
+make aws-cleanup-stale-resources-dryrun    # Preview cleanup (safe - no deletion)
+make aws-cleanup-stale-resources           # Run actual cleanup
+```
+
+For detailed information, troubleshooting, and usage scenarios, see the **[AWS Comprehensive Cleanup Guide](docs/AWS_COMPREHENSIVE_CLEANUP_GUIDE.md)**.
 
 
