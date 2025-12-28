@@ -145,6 +145,20 @@ cnv-install: $(LOGS_DIR) ## Install OpenShift CNV (KubeVirt) operator for VM wor
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/csicertification/kubevirt/cnv-install.yml 2>&1 | tee $(LOGS_DIR)/cnv-install-$(TIMESTAMP).log
 	-@notify.sh "CNV installation finished"
 
+.PHONY: install-with-virtualization
+install-with-virtualization: $(LOGS_DIR) ## Install OCP + GPFS with metal instances for KVM/CNV support (required for VM-based CSI tests)
+	@echo "📝 Logging to: $(LOGS_DIR)/install-virt-$(TIMESTAMP).log"
+	@echo "🖥️  Using metal instances (m5zn.metal) for KVM virtualization support"
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) -e "enable_virtualization=true" $(EXTRA_VARS) playbooks/gpfs/install.yml 2>&1 | tee $(LOGS_DIR)/install-virt-$(TIMESTAMP).log
+	-@notify.sh "AWS install with virtualization finished"
+
+.PHONY: install-hitachi-with-virtualization
+install-hitachi-with-virtualization: $(LOGS_DIR) ## Install OCP + Hitachi with metal instances for KVM/CNV support
+	@echo "📝 Logging to: $(LOGS_DIR)/install-hitachi-virt-$(TIMESTAMP).log"
+	@echo "🖥️  Using metal instances (m5zn.metal) for KVM virtualization support"
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) -e "enable_virtualization=true" $(EXTRA_VARS) playbooks/hitachi/install-hitachi.yml 2>&1 | tee $(LOGS_DIR)/install-hitachi-virt-$(TIMESTAMP).log
+	-@notify.sh "AWS OCP + Hitachi with virtualization finished"
+
 ##@ CSI Certification / Storage Checkup
 .PHONY: storage-checkup
 storage-checkup: $(LOGS_DIR) ## Run KubeVirt Storage Checkup for CSI certification tests

@@ -6,7 +6,7 @@ compute:
   name: worker
   platform:
     aws:
-      type: {{ ocp_worker_type }}
+      type: {{ ocp_worker_type_effective | default(ocp_worker_type) }}
       zones:
        - {{ ocp_az }}
   replicas: {{ ocp_worker_count }}

@@ -15,15 +15,15 @@ This repository automates the deployment of an OpenShift cluster on AWS with IBM
 ## Tear up
 
 Here are the steps to deploy OCP with your choice of storage backend.
-
+****
 ### Available Deployment Options
 
 | Command | What It Installs | Duration |
 |---------|-----------------|----------|
 | `make install` | OCP + IBM GPFS (Spectrum Scale) | ~40-45 min |
 | `make install-hitachi` | OCP + Hitachi HSPC Operator | ~40-45 min |
-| `make install-hitachi-with-sds` | OCP + Hitachi SDS Block + HSPC Operator | ~40-45 min (+ SDS setup) |
-
+| `make install-**hitachi-with-sds` | OCP + Hitachi SDS Block + HSPC Operator | ~40-45 min (+ SDS setup) |
+**
 ### Prerequisites
 
 1. **Ansible dependencies**: 
@@ -308,6 +308,95 @@ The log will contain:
 export KUBECONFIG=~/aws-gpfs-playground/ocp_install_files/auth/kubeconfig
 oc login -u kubeadmin -p <password> https://api.<cluster>.<domain>:6443
 ```
+
+## Virtualization Support (CNV/KVM Testing)
+
+The default worker instance type (`m5.2xlarge`) does **not support KVM virtualization**. This causes VM-based workloads (OpenShift Virtualization, KubeVirt, CSI certification VM tests) to fail with:
+
+```
+0/6 nodes are available: 3 Insufficient devices.kubevirt.io/kvm
+```
+
+### Enabling Virtualization Support
+
+To run workloads that require KVM virtualization, use one of these approaches:
+
+#### Option 1: Use the Virtualization-Enabled Make Targets (Recommended)
+
+```bash
+# For GPFS with virtualization
+make install-with-virtualization
+
+# For Hitachi with virtualization
+make install-hitachi-with-virtualization
+```
+
+#### Option 2: Set in overrides.yml
+
+```yaml
+enable_virtualization: true
+```
+
+Then run your normal install command:
+```bash
+make install
+# or
+make install-hitachi
+```
+
+#### Option 3: Direct Instance Type Override
+
+```yaml
+ocp_worker_type: "m5zn.metal"
+```
+
+### Metal Instance Comparison
+
+| Instance Type | vCPUs | Memory | Network | Cost/hr (approx) | Best For |
+|---------------|-------|--------|---------|------------------|----------|
+| m5.2xlarge | 8 | 32 GiB | Up to 10 Gbps | ~$0.38 | Storage testing only |
+| **m5zn.metal** | 48 | 192 GiB | 100 Gbps | ~$3.96 | **Recommended** - best cost/performance for KVM |
+| c5.metal | 96 | 192 GiB | 25 Gbps | ~$4.08 | Compute-intensive workloads |
+| m5.metal | 96 | 384 GiB | 25 Gbps | ~$4.60 | Large memory workloads |
+
+### Cost Impact
+
+| Configuration | Instance Type | Workers | Estimated Cost/hr |
+|---------------|---------------|---------|-------------------|
+| Storage Only | m5.2xlarge | 3 | ~$1.14 |
+| **With Virtualization** | m5zn.metal | 3 | **~$11.88** |
+
+> **⚠️ Cost Warning:** Metal instances are ~10x more expensive than standard instances. Use only when virtualization testing is required.
+
+### Verifying KVM Support
+
+After deploying with metal instances:
+
+```bash
+# Check for KVM device on worker nodes
+oc debug node/<worker-node-name> -- chroot /host ls -la /dev/kvm
+
+# Check kubevirt node labels
+oc get nodes -l kubevirt.io/schedulable=true -o wide
+
+# Verify no KVM-related scheduling issues
+oc get pods -A | grep virt-launcher
+```
+
+### Region Availability
+
+Not all metal instances are available in all regions. Check availability:
+
+```bash
+aws ec2 describe-instance-type-offerings \
+  --location-type availability-zone \
+  --filters Name=instance-type,Values=m5zn.metal \
+  --region eu-north-1 \
+  --query 'InstanceTypeOfferings[*].Location' \
+  --output table
+```
+
+---
 
 ## Architecture
 

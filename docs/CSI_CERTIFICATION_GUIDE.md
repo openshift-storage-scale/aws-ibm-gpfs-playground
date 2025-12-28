@@ -2,6 +2,38 @@
 
 This guide explains how to set up an AWS OpenShift cluster with storage (GPFS or Hitachi SDS), install OpenShift CNV (KubeVirt), and run the [KubeVirt Storage Checkup](https://github.com/nadavleva/kubevirt-storage-checkup/blob/csireplicpg/docs/csi-tests.md) CSI certification tests.
 
+## ⚠️ Important: KVM Virtualization Requirement
+
+**VM-based tests (Tests 8-17) require KVM virtualization support.** The default `m5.2xlarge` worker instances do NOT support KVM, which causes VM tests to fail with:
+
+```
+0/6 nodes are available: 3 Insufficient devices.kubevirt.io/kvm
+```
+
+### Solution: Use Metal Instances
+
+For full CSI certification (including VM tests), deploy with virtualization-enabled instances:
+
+```bash
+# GPFS with virtualization
+make install-with-virtualization && make cnv-install && make storage-checkup
+
+# Hitachi with virtualization
+make install-hitachi-with-virtualization && make cnv-install && make storage-checkup
+```
+
+Or set in `overrides.yml`:
+
+```yaml
+enable_virtualization: true
+```
+
+> **💰 Cost Note:** Metal instances (`m5zn.metal`) cost ~$11.88/hr for 3 workers vs ~$1.14/hr for standard instances. Only use when VM tests are required.
+
+See the [Virtualization Support section in README.md](../README.md#virtualization-support-cnvkvm-testing) for detailed configuration options.
+
+---
+
 ## Prerequisites
 
 ### 1. Local Environment Requirements
@@ -28,8 +60,11 @@ ocp_cluster_name: "my-cluster"
 ocp_region: "eu-north-1"
 ocp_az: "eu-north-1b"
 ocp_worker_count: 3  # Minimum 2 for live migration tests
-ocp_worker_type: "m5.2xlarge"
 ocp_version: "4.20.8"
+
+# Virtualization support (REQUIRED for VM-based tests 8-17)
+# Set to true to use metal instances with KVM support
+enable_virtualization: true  # Uses m5zn.metal (~$11.88/hr for 3 workers)
 
 # AWS configuration
 aws_profile: "default"
@@ -213,9 +248,13 @@ Based on [csi-tests.md](https://github.com/nadavleva/kubevirt-storage-checkup/bl
 | Requirement | Minimum | Recommended | Notes |
 |-------------|---------|-------------|-------|
 | **Worker Nodes** | 1 | 2+ | Live migration (Test 14) requires 2+ |
+| **Instance Type** | m5.2xlarge | **m5zn.metal** | Metal instances required for VM tests (8-17) |
+| **KVM Support** | No | **Yes** | Required for VM tests; use `enable_virtualization: true` |
 | **Storage Class** | 1 default | 1 default | With VolumeSnapshotClass |
 | **CNV Installed** | Yes | Yes | Required for VM tests (8-17) |
 | **RWX Support** | No | Yes | Required for live migration |
+
+> **Note:** Tests 1-7 (storage-only tests) work with standard `m5.2xlarge` instances. Tests 8-17 (VM tests) require metal instances with KVM support.
 
 ---
 
@@ -264,18 +303,27 @@ make e2e-test
 # Show all available targets
 make help
 
-# ===== Full Installation Paths =====
-# GPFS path
+# ===== Full Installation Paths (Standard - Storage Tests Only) =====
+# GPFS path (Tests 1-7 only - no VM tests)
 make install && make cnv-install && make storage-checkup
 
-# Hitachi path
+# Hitachi path (Tests 1-7 only - no VM tests)
 make install-hitachi-with-sds && make cnv-install && make storage-checkup
+
+# ===== Full Installation Paths (With Virtualization - All Tests) =====
+# GPFS path with KVM support (Tests 1-17)
+make install-with-virtualization && make cnv-install && make storage-checkup
+
+# Hitachi path with KVM support (Tests 1-17)
+make install-hitachi-with-virtualization && make cnv-install && make storage-checkup
 
 # ===== Individual Targets =====
 # Phase 1: Cluster + Storage
-make install                    # OCP + GPFS
-make install-hitachi            # OCP + Hitachi operator
-make install-hitachi-with-sds   # OCP + Hitachi + SDS Block
+make install                              # OCP + GPFS (standard instances)
+make install-with-virtualization          # OCP + GPFS (metal instances for KVM)
+make install-hitachi                      # OCP + Hitachi operator
+make install-hitachi-with-sds             # OCP + Hitachi + SDS Block
+make install-hitachi-with-virtualization  # OCP + Hitachi (metal instances for KVM)
 
 # Phase 2: CNV
 make cnv-install               # Install OpenShift CNV
@@ -295,6 +343,38 @@ make destroy                   # Destroy cluster
 ---
 
 ## Troubleshooting
+
+### VM Tests Fail with "Insufficient devices.kubevirt.io/kvm"
+
+This error indicates your worker nodes don't support KVM virtualization:
+
+```
+0/6 nodes are available: 3 Insufficient devices.kubevirt.io/kvm
+```
+
+**Solution:** Redeploy with metal instances:
+
+```bash
+# Destroy current cluster
+make destroy
+
+# Redeploy with virtualization support
+make install-with-virtualization  # or make install-hitachi-with-virtualization
+```
+
+Or add to `overrides.yml` before deployment:
+```yaml
+enable_virtualization: true
+```
+
+**Verify KVM support after deployment:**
+```bash
+# Check for /dev/kvm on worker nodes
+oc debug node/<worker-node-name> -- chroot /host ls -la /dev/kvm
+
+# Check kubevirt node labels
+oc get nodes -l kubevirt.io/schedulable=true
+```
 
 ### Checkup Fails to Start
 
