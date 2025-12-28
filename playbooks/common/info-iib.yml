@@ -1,0 +1,134 @@
+- name: Set FBC file
+  ansible.builtin.set_fact:
+    fbc_file: /tmp/fbc-{{ item.value['iib'] }}.json
+    operator_file: /tmp/{{ item.key }}-{{ item.value['iib'] }}.json
+
+- name: Pull IIB locally
+  ansible.builtin.command: podman pull {{ item.value['iib_image'] }}
+
+- name: Export fbc
+  ansible.builtin.shell: |
+    podman run {{ item.value['iib_image'] }} render /configs > {{ fbc_file }}
+
+- name: Get all available channels
+  ansible.builtin.shell: |
+    jq 'select(.schema == "olm.channel" and .package == "kernel-module-management").name' {{ fbc_file }}
+  register: all_channels
+
+- name: Print all available channels
+  ansible.builtin.debug:
+    msg: "{{ all_channels.stdout_lines }}"
+
+- name: Get channel for package if default set
+  ansible.builtin.shell: |
+    jq -r 'select(.schema == "olm.package" and .name == "{{ item.key }}").defaultChannel' {{ fbc_file }}
+  register: default_channel_raw
+
+- name: Set default channel fact
+  ansible.builtin.set_fact:
+    default_channel: "{{ default_channel_raw.stdout }}"
+
+- name: Set channel fact if default is chosen
+  ansible.builtin.set_fact:
+    channel: "{{ default_channel }}"
+  when: item.value['channel'] | length == 0
+
+- name: Set channel fact
+  ansible.builtin.set_fact:
+    channel: "{{ item.value['channel'] }}"
+  when: item.value['channel'] | length > 0
+
+- name: Print channel
+  ansible.builtin.debug:
+    msg: "{{ channel }}"
+
+#  jq -r 'select(.schema == "olm.channel" and .package == "kernel-module-management" and .name == "release-2.0").entries.[].name' fbc
+# kernel-module-management.v2.0.0
+# kernel-module-management.v2.0.1
+# kernel-module-management.v2.0.2
+- name: Get CSVs from the channel
+  ansible.builtin.shell: |
+    jq -r 'select(.schema == "olm.channel" and .package == "{{ item.key }}" and .name == "{{ channel }}").entries.[].name' {{ fbc_file }}
+  register: csvs_in_channel
+
+- name: Save only entries related to {{ item.key }} to {{ operator_file }}
+  ansible.builtin.shell: |
+    jq 'select(.schema == "olm.bundle" and .package == "{{ item.key }}")' {{ fbc_file }} > {{ operator_file }}
+
+- name: Get versions for channel {{ channel }}
+  ansible.builtin.shell: |
+    jq -r 'select(.name == "{{ csv }}").properties.[] | select(.type == "olm.package") | .value.version' {{ operator_file }}
+  register: all_versions_raw
+  loop: "{{ csvs_in_channel.stdout_lines }}"
+  loop_control:
+    loop_var: csv
+
+- name: Set the all_versions fact
+  ansible.builtin.set_fact:
+    all_versions: "{{ all_versions_raw.results | map(attribute='stdout') | list }}"
+
+- name: Print all available versions for channel {{ channel }}
+  ansible.builtin.debug:
+    msg: "{{ all_versions }}"
+
+- name: Use the latest version in the list (FIXME, is this always true?)
+  ansible.builtin.set_fact:
+    version: "{{ all_versions[-1] }}"
+
+- name: Print used version
+  ansible.builtin.debug:
+    msg: "{{ version }}"
+
+- name: Set csv file
+  ansible.builtin.set_fact:
+    csv_file: "/tmp/{{ version }}-{{ item.key }}-{{ item.value['iib'] }}.json" 
+
+- name: Fetching whole object
+  ansible.builtin.shell: |
+    set -e
+    jq 'select(.properties[]? | select(.type == "olm.package" and .value.version == "{{ version }}"))' {{ operator_file }} > {{ csv_file }}
+
+- name: Get all images
+  ansible.builtin.shell: |
+    jq -r '.relatedImages[]?.image' {{ csv_file }}
+  register: all_images_raw
+
+- name: Set all images
+  ansible.builtin.set_fact:
+    all_images: "{{ all_images_raw.stdout_lines }}"
+
+- name: Print all images
+  ansible.builtin.debug:
+    msg: "{{ all_images }}"
+
+# Given these all_images:
+#   registry.redhat.io/kmm/kernel-module-management-must-gather-rhel9@sha256:a1062af0a018fc96cec81b57d419252efb566f80628c783d2750419d3cf375b9
+#   registry.redhat.io/kmm/kernel-module-management-rhel9-operator@sha256:1fa8b699a2f05801fc9a00f1155a4f329b9e98ced4017e5b3e6d25fe7f576499
+#   registry.redhat.io/kmm/kernel-module-management-signing-rhel9@sha256:9ca63420bbd37eb48ba0d9c788df49b2ddd97f1351db56269227332665fa4b56
+#   registry.redhat.io/foo/kernel-module-management-signing-rhel9@sha256:9ca63420bbd37eb48ba0d9c788df49b2ddd97f1351db56269227332665fa4b56
+# This will return:
+#   registry.redhat.io/kmm
+#   registry.redhat.io/foo
+- name: Set minimum set of needed prefixes
+  ansible.builtin.set_fact:
+    redirects: >-
+      {{
+        all_images
+        | map('regex_replace', '^([^/]+/)([^/]+)/(.+)', '\1\2')
+        | unique
+        | select('match', '^registry\.redhat\.io')
+        | list
+      }}
+    
+- name: Print needed prefixes
+  ansible.builtin.debug:
+    msg: "{{ redirects }}"
+
+- name: Template mirroring bits
+  ansible.builtin.template:
+    src: ../../templates/mirror-redirects.yaml
+    dest: /tmp/mirror-redirects-{{ item.key }}.yaml
+
+- name: Apply mirroring bits
+  ansible.builtin.shell:
+    oc apply -f /tmp/mirror-redirects-{{ item.key }}.yaml

@@ -1,0 +1,305 @@
+---
+- name: Destroy cluster and EBS volumes
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../../overrides.yml
+  tasks:
+    - name: Check if Hitachi SDS Block was installed
+      ansible.builtin.stat:
+        path: "{{ ocp_cluster_name }}_sds_installed"
+      register: sds_installed_marker
+
+    - name: Check for Hitachi SDS CloudFormation stack
+      amazon.aws.cloudformation_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        stack_name: "hitachi-sds-block-{{ ocp_cluster_name }}"
+      register: sds_cf_stack
+      failed_when: false
+
+    - name: Set fact if SDS was installed
+      ansible.builtin.set_fact:
+        sds_installed: "{{ sds_installed_marker.stat.exists or (sds_cf_stack.cloudformation | default({}) | length > 0) }}"
+
+    - name: Display SDS cleanup status
+      ansible.builtin.debug:
+        msg: "Hitachi SDS detected - will run cleanup before destroying cluster"
+      when: sds_installed | bool
+
+    # ======================================================================
+    # Phase 0: Destroy Hitachi SDS Block (if installed)
+    # ======================================================================
+    - name: Display SDS destruction skip message
+      ansible.builtin.debug:
+        msg: "Skipping SDS Block destruction - using direct terraform destruction of all resources"
+
+    # ======================================================================
+    # Phase 0A: Clean up orphaned security group rules (CRITICAL)
+    # ======================================================================
+    # This phase addresses circular dependencies created by failed OCP deployments.
+    # Security groups may have cross-references that prevent deletion.
+    # See: docs/CIRCULAR_DEPENDENCIES.md
+    # Reference: https://github.com/openshift-storage-scale/aws-ibm-gpfs-playground/issues/XXXX
+
+    - name: Check for OpenShift metadata
+      ansible.builtin.stat:
+        path: "{{ ocpfolder }}/metadata.json"
+      register: metadata_json_file
+
+    - name: Display SG cleanup notice
+      ansible.builtin.debug:
+        msg: |
+          Preparing to revoke security group rules to break circular dependencies.
+          This allows proper cleanup of failed deployment artifacts.
+      when: metadata_json_file.stat.exists
+
+    - name: Execute security group rule revocation
+      block:
+        - name: Run SG rule revocation script
+          ansible.builtin.script:
+            cmd: "{{ basefolder }}/scripts/revoke-sg-rules.sh {{ ocp_region }}"
+          environment:
+            AWS_PROFILE: "{{ aws_profile }}"
+          register: sg_cleanup_result
+          failed_when: false
+          when: metadata_json_file.stat.exists
+
+        - name: Display SG cleanup results
+          ansible.builtin.debug:
+            msg: "{{ sg_cleanup_result.stdout_lines }}"
+          when: 
+            - metadata_json_file.stat.exists
+            - sg_cleanup_result.stdout_lines is defined
+      rescue:
+        - name: Warn about SG cleanup issues
+          ansible.builtin.debug:
+            msg: |
+              ⚠️  Warning: Security group rule revocation had issues.
+              This may cause delays in VPC cleanup after OCP destruction.
+              Continuing with OCP cluster destruction.
+
+    - name: Find OpenShift EC2 Instances
+      amazon.aws.ec2_instance_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ocp_cluster_name }}*worker*"
+          "instance-state-name": "running"
+      register: ec2_workers
+
+    - name: Set EC2 workers instance IDs
+      ansible.builtin.set_fact:
+        worker_ec2_ids: "{{ ec2_workers.instances | map(attribute='instance_id') | list }}"
+
+    - name: Debug worker instance IDs
+      ansible.builtin.debug:
+        msg: "{{ worker_ec2_ids }}"
+
+    - name: Destroy ocp cluster
+      tags:
+        - ocp_destroy
+      ansible.builtin.shell: |
+        {{ basefolder }}/{{ ocp_version }}/openshift-install destroy cluster --dir=. &> {{ logsfolder }}/oc-{{ ocp_version }}-destroy.log
+      args:
+        chdir: "{{ ocpfolder }}"
+      environment:
+        AWS_PROFILE: "{{ aws_profile }}"
+      when: metadata_json_file.stat.exists
+
+    - name: Get the Volume ID by Tag Name
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ gpfs_volume_name }}"
+      register: volume_info
+
+    - name: Debug volume
+      ansible.builtin.debug:
+        msg: "{{ volume_info }}"
+
+    - name: Delete EBS io2 volume
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ volume_info.volumes }}"
+      when: volume_info.volumes | length > 0
+
+    - name: Get the Volume ID by Tag Name (2)
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ gpfs_volume_name_two }}"
+      register: volume_info_two
+      when: baremetal_env | bool
+
+    - name: Debug volume (2)
+      ansible.builtin.debug:
+        msg: "{{ volume_info }}"
+
+    - name: Delete EBS io2 volume (2)
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ volume_info_two.volumes }}"
+      when: baremetal_env | bool and volume_info_two.volumes | length > 0
+
+    # Delete any ceph volumes
+    - name: Get the Volume ID for ceph volumes
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:Name": "{{ ceph_volume_name }}-{{ item }}"
+      register: ceph_volumes
+      loop: "{{ worker_ec2_ids }}"
+
+    - name: Debug ceph volumes
+      ansible.builtin.debug:
+        msg: "Ceph volumes: {{ ceph_volumes }}"
+
+    - name: Delete EBS ceph volumes
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ item.id }}"
+        state: absent
+      loop: "{{ ceph_volumes.volumes }}"
+      when: ceph_volumes.volumes | default([]) | length > 0
+      failed_when: false
+
+    - name: Destroy oadp s3 bucket
+      tags:
+        - oadp
+      amazon.aws.s3_bucket:
+        name: "{{ oadp_s3_bucket }}"
+        state: absent
+        force: true
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: Get IAM policy ARN by name
+      tags:
+        - oadp
+      amazon.aws.iam_policy_info:
+        iam_type: user
+        iam_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: policy_info
+
+    - name: Print ARN policies for user
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ policy_info }}"
+
+    - name: Set fact for the policy ARN
+      tags:
+        - oadp
+      set_fact:
+        my_policy_arn: "{{ item.arn }}"
+      loop: "{{ policy_info.policies }}"
+      when: item.policy_name | default('') == "{{ oadp_s3_bucket }}-owner-policy"
+
+    - name: Delete the IAM policy
+      tags:
+        - oadp
+      amazon.aws.iam_policy:
+        name: "{{ oadp_s3_policy }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      failed_when: false
+
+    - name: List IAM user's access keys
+      tags:
+        - oadp
+      amazon.aws.iam_access_key_info:
+        user_name: "{{ oadp_s3_owner }}"
+        profile: "{{ aws_profile }}"
+      register: key_info
+
+    - name: Delete IAM access key
+      tags:
+        - oadp
+      amazon.aws.iam_access_key:
+        user_name: "{{ oadp_s3_owner }}"
+        id: "{{ item.access_key_id }}"
+        state: absent
+        profile: "{{ aws_profile }}"
+      loop: "{{ key_info.access_keys }}"
+      failed_when: false
+      register: key_delete_result
+
+    - name: Debug key delete
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ key_delete_result }}"
+
+    - name: Delete the IAM s3 user with policy
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent
+        profile: "{{ aws_profile }}"
+        managed_policies:
+          - "{{ my_policy_arn }}"
+      failed_when: false
+      when: my_policy_arn is defined
+
+    - name: Delete the IAM s3 user
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: s3-bucket-owner
+        state: absent
+        profile: "{{ aws_profile }}"
+      failed_when: false
+      when: my_policy_arn is not defined
+
+    # This is needed mainly when destroying with the oadp tag
+    - name: Delete Secret for AWS credentials
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: Secret
+        api_version: v1
+        name: "{{ oadp_s3_secret }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete DataProtectionApplication (DPA)
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        kind: DataProtectionApplication
+        api_version: oadp.openshift.io/v1alpha1
+        name: "{{ oadp_dpa_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false
+
+    - name: Delete backup
+      tags:
+        - oadp
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: absent
+        api_version: velero.io/v1
+        kind: Backup
+        name: "{{ oadp_backup_name }}"
+        namespace: "{{ oadp_ns }}"
+      failed_when: false

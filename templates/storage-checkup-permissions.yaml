@@ -1,0 +1,74 @@
+---
+# ServiceAccount for KubeVirt Storage Checkup
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: storage-checkup-sa
+  namespace: "{{ storage_checkup_namespace }}"
+---
+# Role for storage checkup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: storage-checkup-role
+  namespace: "{{ storage_checkup_namespace }}"
+rules:
+  # ConfigMap access for storing results
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Pod management for test workloads
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # PVC management for storage tests
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Secret access for SSH keys
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "delete"]
+  # Service access for VM networking
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "create", "delete"]
+  # Events for monitoring
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # VirtualMachine resources
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachines", "virtualmachineinstances"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  # VirtualMachineInstanceMigration for live migration tests
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachineinstancemigrations"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # DataVolumes for VM boot tests
+  - apiGroups: ["cdi.kubevirt.io"]
+    resources: ["datavolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Volume snapshots for snapshot tests
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Jobs for concurrent tests
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+# RoleBinding for storage checkup
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: storage-checkup-rolebinding
+  namespace: "{{ storage_checkup_namespace }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: storage-checkup-role
+subjects:
+  - kind: ServiceAccount
+    name: storage-checkup-sa
+    namespace: "{{ storage_checkup_namespace }}"

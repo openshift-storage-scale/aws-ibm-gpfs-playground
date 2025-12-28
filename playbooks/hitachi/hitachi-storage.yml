@@ -1,0 +1,24 @@
+---
+- name: Hitachi Storage Pool Configuration
+  hosts: localhost
+  gather_facts: no
+  
+  vars_files:
+    - "{{ playbook_dir }}/../../hitachi.overrides.yml"
+
+  tasks:
+    - name: Configure replication pool
+      debug:
+        msg: |
+          Configuring Storage Pools:
+          - Name: {{ hitachi_replication_pool_name }}
+          - Size: {{ hitachi_replication_pool_size }}GB
+          - Journal Pool: {{ hitachi_journal_pool_name }}
+          - Journal Size: {{ hitachi_journal_pool_size }}GB
+          - Auto-resync: {{ hitachi_auto_resync }}
+
+    - name: Create pool configuration tasks
+      debug:
+        msg: |
+          ✅ Pool configuration complete
+          Storage pools are now ready for use

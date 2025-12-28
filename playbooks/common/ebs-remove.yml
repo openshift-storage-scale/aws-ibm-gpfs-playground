@@ -1,0 +1,83 @@
+---
+- name: Playbook to detach and delete an EBS volume
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../../overrides.yml
+  vars:
+    # The ID of the EBS volume to delete.
+    # Example: "vol-0123456789abcdef0"
+    # Can be passed on the command line: -e "volume_id=vol-..."
+    volume_id: ""
+
+  tasks:
+    - name: Fail if volume_id is not provided
+      ansible.builtin.fail:
+        msg: "You must provide 'volume_id'."
+      when: volume_id is not defined or volume_id | length == 0
+
+    - name: Get information about the EBS volume to delete
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          volume-id: "{{ volume_id }}"
+      register: ebs_volume_info
+
+    - name: Fail if volume not found
+      ansible.builtin.fail:
+        msg: "Volume {{ volume_id }} not found."
+      when: ebs_volume_info.volumes | length == 0
+
+    - name: Set volume details fact
+      ansible.builtin.set_fact:
+        volume_details: "{{ ebs_volume_info.volumes | first }}"
+
+    - name: Debug volume details
+      ansible.builtin.debug:
+        msg: "Volume details: {{ volume_details }}"
+
+    - name: Detach EBS volume from each attached instance
+      ansible.builtin.shell:
+        cmd: >
+          aws ec2 detach-volume
+          --volume-id "{{ volume_id }}"
+          --instance-id "{{ item.instance_id }}"
+          --region "{{ ocp_region }}"
+          --profile "{{ aws_profile }}"
+        creates: nothing__just_used_to_force_run
+      loop: "{{ volume_details.attachment_set }}"
+      loop_control:
+        label: "Detaching {{ volume_id }} from {{ item.instance_id }}"
+      when: volume_details.attachment_set | length > 0
+      async: 120
+      poll: 5
+
+    - name: Wait for volume to become available before deleting
+      amazon.aws.ec2_vol_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          volume-id: "{{ volume_id }}"
+      register: ebs_volume_check
+      until: ebs_volume_check.volumes | length > 0 and ebs_volume_check.volumes[0].status == 'available'
+      retries: 20
+      delay: 15
+      when: volume_details.attachment_set | length > 0
+
+    - name: Delete the EBS volume
+      amazon.aws.ec2_vol:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        id: "{{ volume_id }}"
+        state: absent
+      register: delete_result
+      notify:
+        - Confirm deletion
+
+  handlers:
+    - name: Confirm deletion
+      ansible.builtin.debug:
+        msg: "Volume {{ volume_id }} has been deleted."

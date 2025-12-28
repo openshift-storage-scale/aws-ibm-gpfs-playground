@@ -1,0 +1,19 @@
+- name: Template catalog source
+  ansible.builtin.template:
+    src: ../../templates/catalogsource.j2.yaml
+    dest: /tmp/catalogsource-{{ item.value['iib'] }}.yml
+
+- name: Apply catalog source
+  ansible.builtin.shell:
+    oc apply -f /tmp/catalogsource-{{ item.value['iib'] }}.yml
+
+- name: Wait for catalogsource to show up
+  ansible.builtin.shell: >-
+    oc get -n "{{ internal_registry_ns }}" packagemanifests 
+    -l "catalog=iib-{{ item.value['iib'] }}" 
+    --field-selector "metadata.name={{ item.key }}"
+  register: oc_catalogsource_result
+  retries: 60
+  delay: 10
+  until: oc_catalogsource_result is not failed
+  changed_when: false

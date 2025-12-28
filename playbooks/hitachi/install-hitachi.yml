@@ -1,0 +1,339 @@
+---
+- name: Playbook to set up the Openshift Cluster with Hitachi VSP One SDS
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../../../overrides.yml
+    - ../../../hitachi.overrides.yml
+  tasks:
+    - name: Print installation info
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Installing AWS OCP Cluster with Hitachi VSP One SDS
+          ============================================================
+          OCP Configuration:
+            Region: {{ ocp_region }}
+            Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }}
+            Workers: {{ ocp_worker_count }} x {{ ocp_worker_type }}
+            AWS Profile: {{ aws_profile }}
+          
+          Hitachi SDS Configuration:
+            Array ID: {{ hitachi_array_id }}
+            Array Name: {{ hitachi_array_name }}
+            Version: {{ hitachi_sds_version }}
+          ============================================================
+
+    # ======================================================================
+    # Phase 0: SDS Block Deployment (Optional - set deploy_sds_block=true)
+    # ======================================================================
+    - name: Deploy Hitachi VSP One SDS Block on AWS
+      tags:
+        - 0_sds_block
+      ansible.builtin.include_tasks: sds-block-deploy.yml
+      when: deploy_sds_block | default(false) | bool
+
+    # ======================================================================
+    # Phase 1: Common OCP Installation (shared with install.yml)
+    # ======================================================================
+    - name: Include common OCP installation tasks
+      ansible.builtin.include_tasks: ../common/_ocp-install-common.yml
+
+    # ======================================================================
+    # Phase 2: AWS Infrastructure Setup (Hitachi-specific ports)
+    # ======================================================================
+    - name: Gather security group info for workers
+      tags:
+        - 2_aws
+      amazon.aws.ec2_security_group_info:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        filters:
+          "tag:sigs.k8s.io/cluster-api-provider-aws/role": "node"
+          "tag:Name": "{{ ocp_cluster_name }}-*"
+      register: sg_info
+
+    - name: Set security group id
+      tags:
+        - 2_aws
+      ansible.builtin.set_fact:
+        sg_worker_id: "{{ sg_info.security_groups[0].group_id }}"
+        sg_worker_name: "{{ sg_info.security_groups[0].group_name }}"
+        sg_worker_description: "{{ sg_info.security_groups[0].description }}"
+      when: sg_info.security_groups | length > 0
+
+    - name: Open up security group for Hitachi SDS ports
+      tags:
+        - 2_aws
+      amazon.aws.ec2_security_group:
+        profile: "{{ aws_profile }}"
+        region: "{{ ocp_region }}"
+        name: "{{ sg_worker_name }}"
+        description: "{{ sg_worker_description }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 443
+              - 8443
+              - 9440
+              - 9441
+              - 10443
+            group_id: "{{ sg_worker_id }}"
+            rule_desc: Hitachi SDS API ports
+          - proto: tcp
+            ports:
+              - 3260
+              - 860
+            group_id: "{{ sg_worker_id }}"
+            rule_desc: iSCSI ports
+          - proto: tcp
+            ports:
+              - 5696
+              - 5697
+            group_id: "{{ sg_worker_id }}"
+            rule_desc: Hitachi replication ports
+        purge_rules: false
+      when: sg_info.security_groups | length > 0
+
+    # ======================================================================
+    # Phase 3: Hitachi SDS Operator Installation
+    # ======================================================================
+    - name: Install Hitachi SDS Operator and CRDs
+      tags:
+        - 3_hitachi_operator
+      block:
+        - name: Export kubeconfig
+          ansible.builtin.set_fact:
+            kubeconfig_path: "{{ ocpfolder }}/auth/kubeconfig"
+
+        - name: Wait for OCP API to be ready
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            for i in {1..60}; do
+              if {{ oc_bin }} get nodes >/dev/null 2>&1; then
+                echo "OCP API is ready"
+                exit 0
+              fi
+              echo "Waiting for OCP API (attempt $i/60)..."
+              sleep 10
+            done
+            echo "OCP API did not become ready"
+            exit 1
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+          ignore_errors: true
+          register: api_ready
+          failed_when: false
+
+        - name: Fail if OCP cluster is not accessible
+          ansible.builtin.fail:
+            msg: |
+              ❌ ERROR: OCP cluster is not accessible!
+              
+              The kubeconfig exists, but the Kubernetes API is not responding.
+              This usually means:
+              1. The OCP cluster was never deployed (metadata.json exists but cluster wasn't created)
+              2. The cluster was destroyed/terminated in AWS
+              3. The cluster is still bootstrapping (takes ~40-45 minutes)
+              
+              To fix this:
+              - If cluster was destroyed: Remove metadata.json to redeploy
+                rm -f {{ ocpfolder }}/metadata.json
+                Then run: make install-hitachi-with-sds
+              
+              - If cluster is still bootstrapping: Wait longer and retry
+              
+              - To check cluster status in AWS:
+                aws ec2 describe-instances --profile {{ aws_profile }} --region {{ ocp_region }} \
+                  --filters "Name=tag:Name,Values={{ ocp_cluster_name }}-*" \
+                  --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PrivateIpAddress]'
+          when: api_ready.rc != 0
+
+        - name: Verify OCP cluster connectivity
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            {{ oc_bin }} get nodes
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+          register: ocp_nodes
+
+        - name: Display OCP cluster nodes
+          ansible.builtin.debug:
+            msg: "{{ ocp_nodes.stdout }}"
+
+        - name: Create hitachi-sds namespace
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            {{ oc_bin }} create namespace {{ hitachi_hspc_namespace }} --dry-run=client -o yaml | {{ oc_bin }} apply -f -
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+        - name: Add Hitachi Helm repository
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            helm repo add {{ hitachi_helm_repo_name }} {{ hitachi_helm_repo_url }}
+            helm repo update
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+          register: helm_repo_result
+          failed_when: 
+            - helm_repo_result.rc != 0
+            - "'already exists with the same name but different URL' not in helm_repo_result.stderr"
+
+        - name: Install Hitachi VSP One SDS HSPC Operator using Helm
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            helm upgrade --install {{ hitachi_helm_repo_name }}-hspc {{ hitachi_helm_repo_name }}/{{ hitachi_helm_chart }} \
+              --namespace {{ hitachi_hspc_namespace }} \
+              --create-namespace \
+              --version {{ hitachi_helm_chart_version }} \
+              --values - <<'HELM_VALUES'
+            image:
+              registry: docker.io
+              repository: hitachi/vsp-one-sds-hspc
+              tag: {{ hitachi_helm_chart_version }}
+              pullPolicy: IfNotPresent
+            rbac:
+              create: true
+            serviceAccount:
+              create: true
+              name: vsp-one-sds-hspc
+            resources:
+              limits:
+                cpu: {{ hitachi_hspc_cpu_limits }}
+                memory: {{ hitachi_hspc_memory_limits }}
+              requests:
+                cpu: {{ hitachi_hspc_cpu_requests }}
+                memory: {{ hitachi_hspc_memory_requests }}
+            HELM_VALUES
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+          register: helm_install_result
+
+        - name: Display Helm installation result
+          ansible.builtin.debug:
+            msg: "{{ helm_install_result.stdout }}"
+
+        - name: Wait for Hitachi SDS HSPC Operator to be ready
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            for i in {1..60}; do
+              STATUS=$({{ oc_bin }} get deployment -n {{ hitachi_hspc_namespace }} -l app=vsp-one-sds-hspc -o jsonpath='{.items[0].status.readyReplicas}' 2>/dev/null)
+              if [ "$STATUS" = "{{ hitachi_hspc_replicas }}" ] || [ "$STATUS" != "" ]; then
+                echo "Hitachi SDS HSPC Operator is ready (replicas: $STATUS)"
+                exit 0
+              fi
+              echo "Waiting for Hitachi SDS HSPC Operator (attempt $i/60)..."
+              sleep 10
+            done
+            echo "Hitachi SDS HSPC Operator did not become ready in time"
+            exit 1
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # ======================================================================
+    # Phase 4: Hitachi SDS Configuration (CRDs and Storage Setup)
+    # ======================================================================
+    - name: Configure Hitachi SDS Storage
+      tags:
+        - 4_hitachi_config
+      block:
+        - name: Create Hitachi storage pool configuration
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            cat <<'POOL_CONFIG' | {{ oc_bin }} apply -f -
+            apiVersion: sds.hitachi.com/v1
+            kind: StoragePool
+            metadata:
+              name: {{ hitachi_pool_name | default('default-pool') }}
+              namespace: hitachi-sds
+            spec:
+              arrayId: {{ hitachi_array_id }}
+              poolType: RAID6
+              diskSize: {{ hitachi_disk_size | default('500Gi') }}
+              diskCount: {{ hitachi_disk_count | default(3) }}
+            POOL_CONFIG
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+        - name: Create Hitachi StorageClass for high protection
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            {{ oc_bin }} apply -f config/hitachi/storage/storage-class.yaml
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+        - name: Create Hitachi VolumeReplicationClass (async)
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            {{ oc_bin }} apply -f config/hitachi/storage/vrc-async.yaml
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+        - name: Create Hitachi RBAC configuration
+          ansible.builtin.shell: |
+            export KUBECONFIG={{ kubeconfig_path }}
+            {{ oc_bin }} apply -f config/hitachi/storage/rbac.yaml
+          environment:
+            KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # ======================================================================
+    # Phase 5: Completion and Next Steps
+    # ======================================================================
+    - name: Display installation summary
+      tags:
+        - 5_summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          ✅ AWS OCP Cluster + Hitachi VSP One SDS Installation Complete!
+          ============================================================
+          
+          Cluster Details:
+            Name: {{ ocp_cluster_name }}.{{ ocp_domain }}
+            Region: {{ ocp_region }}
+            Workers: {{ ocp_worker_count }} x {{ ocp_worker_type }}
+            kubeconfig: {{ kubeconfig_path }}
+          
+          Hitachi SDS Details:
+            Array ID: {{ hitachi_array_id }}
+            Array Name: {{ hitachi_array_name }}
+            Version: {{ hitachi_sds_version }}
+            Namespace: hitachi-sds
+            Status: Operator deployed, CRDs configured
+          
+          Next Steps:
+            1. Export kubeconfig:
+               export KUBECONFIG={{ kubeconfig_path }}
+            
+            2. Verify OCP cluster:
+               {{ oc_bin }} get nodes
+            
+            3. Check Hitachi SDS status:
+               {{ oc_bin }} get pods -n hitachi-sds
+            
+            4. Verify StorageClass:
+               {{ oc_bin }} get storageclass | grep hitachi
+            
+            5. Deploy test workload:
+               {{ oc_bin }} apply -f config/hitachi/examples/pvc-sample.yaml
+            
+            6. Monitor replication:
+               {{ oc_bin }} get volumereplication -A -w
+          
+          Documentation:
+            - Main README: HITACHI_README.md
+            - Quick Start: HITACHI_QUICKSTART.md
+            - Implementation Details: HITACHI_IMPLEMENTATION_SUMMARY.md
+          
+          ============================================================
+
+    - name: Cleanup notification
+      tags:
+        - 5_summary
+      ansible.builtin.debug:
+        msg: |
+          To destroy all resources (OCP + Hitachi SDS):
+            make destroy

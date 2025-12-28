@@ -1,0 +1,246 @@
+---
+- name: Playbook to set up the virt demo bits
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../../overrides.yml
+  tasks:
+    - name: Print AWS infos
+      ansible.builtin.debug:
+        msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }}"
+
+    - name: Check if cluster has gpfs installed correctly
+      ansible.builtin.shell: |
+        set -ex
+        export KUBECONFIG={{ kubeconfig }}
+        oc get filesystems -A
+
+    - name: Template oadp subscription files
+      tags:
+        - oadp
+      ansible.builtin.template:
+        src: ../../templates/{{ item }}
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - oadp-subscription.yaml
+
+    - name: Apply oadp subscription
+      tags:
+        - oadp
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      register: virt_apply
+      until: virt_apply is not failed
+      retries: 20
+      delay: 10
+      loop:
+        - oadp-subscription.yaml
+
+    - name: Create S3 bucket
+      tags:
+        - oadp
+      amazon.aws.s3_bucket:
+        name: "{{ oadp_s3_bucket }}"
+        state: present
+        region: "{{ ocp_region }}"
+        profile: "{{ aws_profile }}"
+      register: s3_create_result
+
+    - name: Create IAM policy granting full access to a specific bucket
+      tags:
+        - oadp
+      amazon.aws.iam_managed_policy:
+        name: "{{ oadp_s3_policy }}"
+        profile: "{{ aws_profile }}"
+        state: present
+        policy: |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": "s3:*",
+                "Resource": [
+                  "arn:aws:s3:::{{ oadp_s3_bucket }}",
+                  "arn:aws:s3:::{{ oadp_s3_bucket }}/*"
+                ]
+              }
+            ]
+          }
+      register: s3_policy
+
+    - name: Print S3 info
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ s3_create_result }}"
+
+    - name: Print s3 bucket url
+      tags:
+        - oadp
+      ansible.builtin.debug:
+        msg: "{{ oadp_s3_url }}"
+
+    - name: Create s3 bucket owner
+      tags:
+        - oadp
+      amazon.aws.iam_user:
+        name: "{{ oadp_s3_owner }}"
+        state: present
+        profile: "{{ aws_profile }}"
+        managed_policies:
+          - "{{ s3_policy.policy.arn }}"
+
+    - name: Create access key for user
+      tags:
+        - oadp
+      amazon.aws.iam_access_key:
+        user_name: "{{ oadp_s3_owner }}"
+        state: present
+        profile: "{{ aws_profile }}"
+      register: s3_owner_keys
+
+    - name: Write these keys to file just in case
+      tags:
+        - oadp
+      ansible.builtin.copy:
+        dest: "{{ gpfsfolder }}/oadp-s3-creds.txt"
+        content: "{{ s3_owner_keys }}"
+
+    - name: Create Secret for AWS credentials (if not already created)
+      tags:
+        - oadp2
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ oadp_s3_secret }}"
+            namespace: "{{ oadp_ns }}"
+          stringData:
+            cloud: |
+              [default]
+              aws_access_key_id = {{ s3_owner_keys.access_key_id }}
+              aws_secret_access_key = {{ s3_owner_keys.secret_access_key }}
+          type: Opaque
+
+    - name: Create DataProtectionApplication (DPA)
+      tags:
+        - oadp2
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: oadp.openshift.io/v1alpha1
+          kind: DataProtectionApplication
+          metadata:
+            name: "{{ oadp_dpa_name }}"
+            namespace: "{{ oadp_ns }}"
+          spec:
+            configuration:
+              nodeAgent:
+                enable: true
+                uploaderType: kopia
+              velero:
+                logLevel: debug
+                defaultPlugins:
+                  - csi
+                  - aws
+                  - openshift
+                  - kubevirt
+            backupLocations:
+              - name: s3-backup
+                velero:
+                  provider: aws
+                  default: true
+                  objectStorage:
+                    bucket: "{{ oadp_s3_bucket }}"
+                    prefix: velero
+                  config:
+                    region: "{{ ocp_region }}"
+                    # s3Url: "{{ oadp_s3_url }}"
+                  credential:
+                    name: "{{ oadp_s3_secret }}"
+                    key: cloud
+
+    - name: Wait for DPA to be ready
+      tags:
+        - oadp2
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: oadp.openshift.io/v1alpha1
+        kind: DataProtectionApplication
+        namespace: "{{ oadp_ns }}"
+        name: "{{ oadp_dpa_name }}"
+      register: dpa_status
+      retries: 30
+      delay: 10
+      until: dpa_status.resources[0].status.conditions | selectattr('type', 'equalto', 'Reconciled') | selectattr('status', 'equalto', 'True') | list | length > 0
+
+    - name: Wait for BackupStorageLocation to be available
+      tags:
+        - oadp2
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: velero.io/v1
+        kind: BackupStorageLocation
+        namespace: "{{ oadp_ns }}"
+        name: s3-backup
+      register: backupstoragelocation
+      retries: 30
+      delay: 10
+      until: >
+        (backupstoragelocation.resources | default([]) | length > 0) and 
+        ('status' in backupstoragelocation.resources[0]) and
+        (backupstoragelocation.resources[0].status.phase | default('') == 'Available')
+
+    - name: Create VM snapshot using OADP (Velero Backup CR)
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: velero.io/v1
+          kind: Backup
+          metadata:
+            name: "{{ oadp_backup_name }}"
+            namespace: "{{ oadp_ns }}"
+          spec:
+            snapshotMoveData: true
+            includedNamespaces:
+              - "{{ virt_test_ns }}"
+            # includedResources:
+            #   - virtualmachines.kubevirt.io
+            #   - virtualmachineinstance.kubevirt.io
+            #   - persistentvolumeclaims
+            #   - pods
+            labelSelector:
+              matchLabels:
+                app: "{{ virt_vm_name }}"
+            storageLocation: s3-backup
+            ttl: 720h0m0s
+
+    - name: Wait for backup to complete
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig }}"
+        api_version: velero.io/v1
+        kind: Backup
+        namespace: "{{ oadp_ns }}"
+        name: "{{ oadp_backup_name }}"
+      register: backup_status
+      retries: 30
+      delay: 20
+      until: >
+        (backup_status.resources | default([]) | length > 0) and 
+        ('status' in backup_status.resources[0]) and
+        (backup_status.resources[0].status.phase | default('') == 'Completed')
+
+    - name: Confirm backup success
+      debug:
+        msg: "Backup '{{ oadp_backup_name }}' completed and uploaded to S3 bucket '{{ oadp_s3_bucket }}'."

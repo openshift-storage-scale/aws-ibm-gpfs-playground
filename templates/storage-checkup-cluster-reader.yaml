@@ -1,0 +1,76 @@
+---
+# ClusterRoleBinding to give storage checkup cluster-wide read access
+# Required for checking storage classes, storage profiles, nodes, etc.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubevirt-storage-checkup-clustereader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+subjects:
+  - kind: ServiceAccount
+    name: storage-checkup-sa
+    namespace: "{{ storage_checkup_namespace }}"
+---
+# Additional ClusterRole for storage-specific resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: storage-checkup-cluster-role
+rules:
+  # Storage classes inspection
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  # Volume snapshot classes inspection
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotclasses"]
+    verbs: ["get", "list", "watch"]
+  # Persistent volumes inspection
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch"]
+  # Nodes for multi-node detection
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  # CDI StorageProfiles for clone/snapshot capability detection
+  - apiGroups: ["cdi.kubevirt.io"]
+    resources: ["storageprofiles"]
+    verbs: ["get", "list", "watch"]
+  # CDI DataSources and DataImportCrons for golden image tests
+  - apiGroups: ["cdi.kubevirt.io"]
+    resources: ["datasources", "dataimportcrons"]
+    verbs: ["get", "list", "watch"]
+  # KubeVirt instance types and preferences
+  - apiGroups: ["instancetype.kubevirt.io"]
+    resources: ["virtualmachineclusterinstancetypes", "virtualmachineclusterpreferences"]
+    verbs: ["get", "list", "watch"]
+  # Cluster version detection
+  - apiGroups: ["config.openshift.io"]
+    resources: ["clusterversions"]
+    verbs: ["get", "list"]
+  # CNV operator version detection
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions"]
+    verbs: ["get", "list"]
+  # VMIs cluster-wide for storage class validation
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachines", "virtualmachineinstances"]
+    verbs: ["get", "list", "watch"]
+---
+# ClusterRoleBinding for storage-specific permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: storage-checkup-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: storage-checkup-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: storage-checkup-sa
+    namespace: "{{ storage_checkup_namespace }}"

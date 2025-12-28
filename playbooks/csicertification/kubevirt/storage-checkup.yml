@@ -1,0 +1,217 @@
+---
+# KubeVirt Storage Checkup Playbook
+# Runs the CSI certification tests for KubeVirt Storage
+# Reference: https://github.com/nadavleva/kubevirt-storage-checkup/blob/csireplicpg/docs/csi-tests.md
+- name: Run KubeVirt Storage Checkup for CSI Certification
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    - ../../../overrides.yml
+  vars:
+    storage_checkup_namespace: "{{ lookup('env', 'CHECKUP_NAMESPACE') | default('storage-checkup', true) }}"
+  tasks:
+    - name: Display cluster information
+      ansible.builtin.debug:
+        msg: |
+          Running KubeVirt Storage Checkup
+          ================================
+          Region: {{ ocp_region }}
+          Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }}
+          Storage Class: {{ storage_checkup_storageclass | default('ibm-test-sc') }}
+          Checkup Namespace: {{ storage_checkup_namespace }}
+
+    - name: Verify cluster connectivity
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} cluster-info
+      register: cluster_check
+      changed_when: false
+
+    - name: Check if OpenShift CNV is installed
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get csv -n openshift-cnv -o name | grep -q kubevirt
+      register: cnv_check
+      failed_when: false
+      changed_when: false
+
+    - name: Fail if CNV is not installed
+      ansible.builtin.fail:
+        msg: |
+          OpenShift CNV (KubeVirt) is not installed!
+          Please run 'make cnv-install' first to install CNV, or ensure the HyperConverged CR exists.
+          The KubeVirt Storage Checkup requires CNV for VM-based tests (8-17).
+      when: cnv_check.rc != 0
+
+    - name: Check number of worker nodes (for live migration test)
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get nodes --selector='node-role.kubernetes.io/worker' --no-headers | wc -l
+      register: worker_count
+      changed_when: false
+
+    - name: Display node count warning for single-node clusters
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  WARNING: Only {{ worker_count.stdout | trim }} worker node(s) detected.
+          Live migration test (Test 14) will be skipped on single-node clusters.
+          For full certification, deploy with 2+ worker nodes.
+      when: (worker_count.stdout | trim | int) < 2
+
+    - name: Create checkup namespace
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} create namespace {{ storage_checkup_namespace }} --dry-run=client -o yaml | {{ oc_bin }} apply -f -
+      register: ns_create
+
+    - name: Template storage checkup manifests
+      ansible.builtin.template:
+        src: "../../../templates/{{ item }}"
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - storage-checkup-permissions.yaml
+        - storage-checkup-cluster-reader.yaml
+        - storage-checkup-configmap.yaml
+        - storage-checkup-job.yaml
+
+    - name: Apply RBAC permissions
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/{{ item }}"
+      loop:
+        - storage-checkup-permissions.yaml
+        - storage-checkup-cluster-reader.yaml
+      register: rbac_apply
+
+    - name: Apply checkup configuration
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/storage-checkup-configmap.yaml"
+      register: config_apply
+
+    - name: Delete previous checkup job if exists
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} delete job storage-checkup -n {{ storage_checkup_namespace }} --ignore-not-found=true
+        # Wait for pod cleanup
+        sleep 5
+      register: job_cleanup
+
+    - name: Start storage checkup job
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/storage-checkup-job.yaml"
+      register: job_start
+
+    - name: Display monitoring instructions
+      ansible.builtin.debug:
+        msg: |
+          📊 Storage Checkup Started!
+          ===========================
+          
+          Monitor the checkup progress:
+            {{ oc_bin }} logs -f job/storage-checkup -n {{ storage_checkup_namespace }}
+          
+          Check job status:
+            {{ oc_bin }} get job storage-checkup -n {{ storage_checkup_namespace }}
+          
+          View results when complete:
+            {{ oc_bin }} get configmap storage-checkup-config -n {{ storage_checkup_namespace }} -o yaml
+
+    - name: Wait for checkup job to complete
+      tags:
+        - wait
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} wait --for=condition=complete job/storage-checkup -n {{ storage_checkup_namespace }} --timeout={{ storage_checkup_wait_timeout | default('20m') }}
+      register: job_wait
+      failed_when: false
+
+    - name: Check if job failed
+      tags:
+        - wait
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get job storage-checkup -n {{ storage_checkup_namespace }} -o jsonpath='{.status.failed}'
+      register: job_failed
+      changed_when: false
+      when: job_wait.rc != 0
+
+    - name: Get checkup pod logs on failure
+      tags:
+        - wait
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} logs job/storage-checkup -n {{ storage_checkup_namespace }} --tail=100
+      register: checkup_logs
+      failed_when: false
+      when: job_wait.rc != 0
+
+    - name: Display failure logs
+      tags:
+        - wait
+      ansible.builtin.debug:
+        msg: |
+          ❌ Checkup job failed or timed out!
+          
+          Last 100 lines of logs:
+          {{ checkup_logs.stdout | default('No logs available') }}
+      when: job_wait.rc != 0
+
+    - name: Get checkup results
+      tags:
+        - wait
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get configmap storage-checkup-config -n {{ storage_checkup_namespace }} -o yaml
+      register: checkup_results
+      changed_when: false
+
+    - name: Display checkup results
+      tags:
+        - wait
+      ansible.builtin.debug:
+        msg: |
+          📋 Storage Checkup Results
+          ==========================
+          {{ checkup_results.stdout }}
+
+    - name: Parse and display test summary
+      tags:
+        - wait
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        echo "=== Test Results Summary ==="
+        echo ""
+        # Get key result fields
+        {{ oc_bin }} get configmap storage-checkup-config -n {{ storage_checkup_namespace }} -o jsonpath='{.data}' | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'{k}: {v}') for k,v in sorted(d.items()) if k.startswith('status.result')]"
+        echo ""
+        echo "=== Versions ==="
+        {{ oc_bin }} get configmap storage-checkup-config -n {{ storage_checkup_namespace }} -o jsonpath='{.data.status\.result\.ocpVersion}' && echo ""
+        {{ oc_bin }} get configmap storage-checkup-config -n {{ storage_checkup_namespace }} -o jsonpath='{.data.status\.result\.cnvVersion}' && echo ""
+      register: test_summary
+      failed_when: false
+
+    - name: Display test summary
+      tags:
+        - wait
+      ansible.builtin.debug:
+        msg: "{{ test_summary.stdout }}"
+      when: test_summary.stdout is defined
+

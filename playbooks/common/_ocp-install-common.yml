@@ -1,0 +1,155 @@
+---
+# Common OCP installation tasks shared by install.yml and install-hitachi.yml
+# This file contains only the OCP cluster provisioning logic, not storage-specific setup
+
+- name: Print AWS infos
+  tags:
+    - 1_ocp_install
+  ansible.builtin.debug:
+    msg: "Region: {{ ocp_region }} - Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }} - Workers [{{ ocp_worker_count }}]: {{ ocp_worker_type }} - AWS Profile: {{ aws_profile }}"
+
+- name: Get AWS caller identity for Owner tag
+  tags:
+    - 1_ocp_install
+  amazon.aws.aws_caller_info:
+    profile: "{{ aws_profile }}"
+  register: aws_caller_info
+
+- name: Set OCP owner from AWS user
+  tags:
+    - 1_ocp_install
+  ansible.builtin.set_fact:
+    ocp_owner: "{{ aws_caller_info.arn.split('/')[-1] | default(ansible_env.USER) | default(ansible_user_id) | default('unknown') }}"
+
+- name: Print Owner info
+  tags:
+    - 1_ocp_install
+  ansible.builtin.debug:
+    msg: "OCP instances will be tagged with Owner: {{ ocp_owner }}"
+
+- name: Verify htpasswd exists
+  ansible.builtin.command:
+    cmd: which htpasswd
+  register: htpasswd_check
+  failed_when: htpasswd_check.rc != 0
+  tags:
+    - 1_ocp_install
+
+- name: Check if the ibm-entitlement file exists
+  tags:
+    - 1_ocp_install
+  ansible.builtin.stat:
+    path: "{{ ibmentitlementkeyfile }}"
+  register: ibmentitlementkeyfile_stat
+
+- name: Fail if ibm-entitlement file does not exist
+  tags:
+    - 1_ocp_install
+  ansible.builtin.fail:
+    msg: "The ibm-entitlement file {{ ibmentitlementkeyfile }} does not exist!"
+  when: not ibmentitlementkeyfile_stat.stat.exists
+
+- name: Create working folder
+  tags:
+    - 1_ocp_install
+  ansible.builtin.file:
+    path: "{{ ocpfolder }}"
+    state: directory
+    recurse: true
+
+- name: Does cluster metadata.json exist
+  tags:
+    - 1_ocp_install
+  ansible.builtin.stat:
+    path: "{{ ocpfolder }}/metadata.json"
+  register: metadata_json_file
+
+- name: Template OCP install file
+  tags:
+    - 1_ocp_install
+  ansible.builtin.template:
+    src: ../../templates/full-cluster-install-config.j2.yaml
+    dest: "{{ ocpfolder }}/install-config.yaml"
+  when: not metadata_json_file.stat.exists
+
+- name: Install ocp cluster
+  tags:
+    - 1_ocp_install
+  when: not metadata_json_file.stat.exists
+  block:
+    - name: Run openshift-install
+      ansible.builtin.shell: |
+        set -ex
+        id
+        {{ basefolder }}/{{ ocp_version }}/openshift-install create cluster --dir=. 2>&1 | tee {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log
+      args:
+        chdir: "{{ ocpfolder }}"
+      environment:
+        AWS_PROFILE: "{{ aws_profile }}"
+      register: openshift_install_result
+  rescue:
+    - name: Display openshift-install error
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "ERROR: openshift-install failed!"
+          - "=========================================="
+          - "Last lines from openshift-install output:"
+
+    - name: Print error details (captured output)
+      ansible.builtin.debug:
+        msg: "{{ combined_output[-20:] if combined_output | length > 0 else ['No output captured'] }}"
+      vars:
+        combined_output: "{{ (openshift_install_result.stderr_lines | default([])) + (openshift_install_result.stdout_lines | default([])) }}"
+
+    - name: Provide helpful information
+      ansible.builtin.debug:
+        msg:
+          - "Full log available at: {{ logsfolder }}/oc-{{ ocp_version }}-{{ ocp_cluster_name }}.log"
+          - "Common issues:"
+          - "  - Cluster name must be lowercase (a-z, 0-9, -, .)"
+          - "  - Check AWS credentials and permissions"
+          - "  - Verify install-config.yaml is valid"
+
+    - name: Fail the playbook
+      ansible.builtin.fail:
+        msg: "openshift-install failed. See error details above."
+
+- name: Does cluster kubeconfig exist
+  tags:
+    - 1_ocp_install
+  ansible.builtin.stat:
+    path: "{{ ocpfolder }}/auth/kubeconfig"
+  register: kubeconfig_file
+
+- name: Fail here there is no kubeconfig file
+  tags:
+    - 1_ocp_install
+  ansible.builtin.fail: msg="The openshift cluster kubeconfig file is missing, please check {{ ocpfolder }}.openshift_install.log"
+  when: not kubeconfig_file.stat.exists
+
+- name: Set kubeadmin password fact
+  tags:
+    - 1_ocp_install
+  when: kubeadmin_pass is defined and kubeadmin_pass | length > 0
+  block:
+    - name: Encrypt kubeadmin password
+      ansible.builtin.shell: |
+        set -o pipefail
+        echo -n "{{ kubeadmin_pass }}" | htpasswd -i -B -n admin | awk -F ":" '{ print $2}' | base64 -w0
+      register:
+        hashed_password_out
+    - name: Set hashed password fact
+      tags:
+        - 1_ocp_install
+      ansible.builtin.set_fact:
+        hashed_password: "{{ hashed_password_out.stdout }}"
+
+    - name: Set kubeadmin password
+      tags:
+        - 1_ocp_install
+      ansible.builtin.shell: |
+        set -e
+        chmod 0600 {{ kubeconfig }}
+        export KUBECONFIG={{ kubeconfig }}
+        {{ oc_bin }} patch secret -n kube-system kubeadmin --type json -p '[{"op": "replace", "path": "/data/kubeadmin", "value": "'{{ hashed_password }}'"}]'

@@ -1,0 +1,167 @@
+---
+# Install OpenShift CNV (KubeVirt) Operator
+# This playbook installs CNV on any OpenShift cluster (AWS, baremetal, etc.)
+# Required for running KubeVirt Storage Checkup tests
+- name: Install OpenShift CNV (KubeVirt) for storage certification tests
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    - ../../../overrides.yml
+  tasks:
+    - name: Display cluster information
+      ansible.builtin.debug:
+        msg: |
+          Installing OpenShift CNV (KubeVirt)
+          ====================================
+          Region: {{ ocp_region }}
+          Cluster: {{ ocp_cluster_name }}.{{ ocp_domain }}
+
+    - name: Verify cluster connectivity
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} cluster-info
+      register: cluster_check
+      changed_when: false
+
+    - name: Check if storage is configured
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get storageclass -o name | wc -l
+      register: sc_count
+      changed_when: false
+
+    - name: Warn if no storage classes
+      ansible.builtin.debug:
+        msg: |
+          ⚠️  WARNING: No storage classes found.
+          CNV requires a storage class for VM disk provisioning.
+          Ensure IBM Spectrum Scale, Hitachi SDS, or other storage is configured first.
+      when: (sc_count.stdout | trim | int) == 0
+
+    - name: Check number of worker nodes
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get nodes --selector='node-role.kubernetes.io/worker' --no-headers | wc -l
+      register: worker_count
+      changed_when: false
+
+    - name: Display node count info
+      ansible.builtin.debug:
+        msg: |
+          ℹ️  Cluster has {{ worker_count.stdout | trim }} worker node(s).
+          {% if (worker_count.stdout | trim | int) < 2 %}
+          NOTE: Live migration tests require 2+ worker nodes.
+          {% else %}
+          ✓ Sufficient nodes for all CNV features including live migration.
+          {% endif %}
+
+    - name: Template CNV subscription and HyperConverged files
+      ansible.builtin.template:
+        src: ../../../templates/{{ item }}
+        dest: "{{ gpfsfolder }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - virt-subscription.yaml
+        - virt-hyperconverged.yaml
+
+    - name: Apply CNV namespace and subscription
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-subscription.yaml"
+      register: cnv_subscription
+
+    - name: Wait for CNV operator to be available
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} wait --for=condition=Ready pods -l name=hyperconverged-cluster-operator -n openshift-cnv --timeout=5m
+      register: cnv_operator_wait
+      retries: 10
+      delay: 30
+      until: cnv_operator_wait is not failed
+
+    - name: Wait for CNV CSV to be Succeeded
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} get csv -n openshift-cnv -o jsonpath='{.items[?(@.spec.displayName=="OpenShift Virtualization")].status.phase}' | grep -q Succeeded
+      register: csv_status
+      retries: 30
+      delay: 20
+      until: csv_status is not failed
+
+    - name: Apply HyperConverged CR
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} apply -f "{{ gpfsfolder }}/virt-hyperconverged.yaml"
+      register: hco_apply
+      retries: 5
+      delay: 10
+      until: hco_apply is not failed
+
+    - name: Wait for HyperConverged to be ready
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        {{ oc_bin }} wait --for=condition=Available hyperconverged/kubevirt-hyperconverged -n openshift-cnv --timeout=10m
+      register: hco_ready
+      retries: 3
+      delay: 60
+      until: hco_ready is not failed
+
+    - name: Download virtctl CLI
+      ansible.builtin.shell: |
+        set -ex
+        rm -f /tmp/virtctl.tar.gz
+        # Try to download virtctl from the cluster
+        curl -L -o /tmp/virtctl.tar.gz -k \
+          "https://hyperconverged-cluster-cli-download-openshift-cnv.apps.{{ ocp_cluster_name }}.{{ ocp_domain }}/amd64/linux/virtctl.tar.gz" || \
+          echo "virtctl download failed, will retry"
+        if [ -f /tmp/virtctl.tar.gz ]; then
+          pushd /tmp
+          tar xf virtctl.tar.gz
+          mv virtctl "{{ virtctl_bin }}"
+          popd
+        fi
+      register: virtctl_download
+      retries: 5
+      delay: 30
+      until: virtctl_download is not failed
+      failed_when: false
+
+    - name: Verify CNV installation
+      ansible.builtin.shell: |
+        set -e
+        export KUBECONFIG="{{ kubeconfig }}"
+        echo "=== CNV Operator Status ==="
+        {{ oc_bin }} get csv -n openshift-cnv
+        echo ""
+        echo "=== HyperConverged Status ==="
+        {{ oc_bin }} get hyperconverged -n openshift-cnv
+        echo ""
+        echo "=== CDI Status ==="
+        {{ oc_bin }} get cdi -A
+        echo ""
+        echo "=== Storage Profiles ==="
+        {{ oc_bin }} get storageprofiles
+      register: cnv_verify
+      changed_when: false
+
+    - name: Display CNV installation status
+      ansible.builtin.debug:
+        msg: |
+          {{ cnv_verify.stdout }}
+          
+          ✅ OpenShift CNV installed successfully!
+          
+          Next steps:
+          1. Run storage checkup: make storage-checkup
+          2. View checkup results: make storage-checkup-results
+          3. Create test VMs: See templates/virt-vm-*.yaml
+

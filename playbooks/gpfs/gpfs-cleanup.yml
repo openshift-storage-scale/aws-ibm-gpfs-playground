@@ -1,0 +1,145 @@
+---
+# Follows https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=cleanup-red-hat-openshift-nodes
+# to cleanup all objects
+- name: Playbook to cleanup GPFS
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    # Use this to override stuff that won't be committed to git
+    - ../../overrides.yml
+  tasks:
+  - name: Delete the fusionaccess
+    tags:
+      - 1_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/fusionaccess.yaml"
+    retries: 2
+    delay: 5
+    register: fusionaccess_ready
+    until: fusionaccess_ready is not failed
+    ignore_errors: true
+
+  - name: Debug fusionaccess removal errors
+    ansible.builtin.debug:
+      msg: "{{ fusionaccess_ready.stdout }}"
+    when: fusionaccess_ready is failed
+
+  - name: Delete the test deployment
+    tags:
+      - 1_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/test_consume.yaml"
+    failed_when: false
+
+  - name: Delete the snapshotclass
+    tags:
+      - 1_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/snapshot.yaml"
+    failed_when: false
+
+  - name: Delete the FileSystemClaim (will cascade delete LocalDisk, Filesystem, and StorageClass)
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete filesystemclaim -n ibm-spectrum-scale filesystemclaim-sample
+    retries: 5
+    delay: 10
+    register: filesystemclaim_ready
+    until: filesystemclaim_ready is not failed
+    ignore_errors: true
+
+  - name: Debug FileSystemClaim removal errors
+    tags:
+      - 2_cleanup
+    ansible.builtin.debug:
+      msg: "{{ filesystemclaim_ready.stdout }}"
+    when: filesystemclaim_ready is failed
+
+  - name: Wait for LocalDisk and Filesystem to be deleted (cascade)
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      # Wait until no LocalDisk or Filesystem resources exist
+      LOCAL_DISKS_RAW=$({{ oc_bin }} get localdisk -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      LOCAL_DISKS_STATUS=$?
+      FILESYSTEMS_RAW=$({{ oc_bin }} get filesystem -n ibm-spectrum-scale --no-headers 2>/dev/null)
+      FILESYSTEMS_STATUS=$?
+      if [ ${LOCAL_DISKS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get localdisk' failed"
+        exit 2
+      fi
+      if [ ${FILESYSTEMS_STATUS} -ne 0 ]; then
+        echo "Error: 'oc get filesystem' failed"
+        exit 3
+      fi
+      LOCAL_DISKS=$(echo "$LOCAL_DISKS_RAW" | wc -l)
+      FILESYSTEMS=$(echo "$FILESYSTEMS_RAW" | wc -l)
+      if [ ${LOCAL_DISKS} -gt 0 ] || [ ${FILESYSTEMS} -gt 0 ]; then
+        exit 1
+      fi
+    retries: 5
+    delay: 10
+    register: cascade_delete
+    until: cascade_delete is not failed
+    ignore_errors: true
+
+  - name: Delete StorageClass if it still exists
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete storageclass filesystemclaim-sample
+    failed_when: false
+
+  - name: Delete the cluster
+    tags:
+      - 2_cleanup
+    ansible.builtin.shell: |
+      set -ex
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} delete -f "{{ gpfsfolder }}/cluster.yaml"
+    retries: 2
+    delay: 5
+    register: cluster_ready
+    until: cluster_ready is not failed
+    ignore_errors: true
+
+  - name: Debug cluster removal errors
+    ansible.builtin.debug:
+      msg: "{{ cluster_ready.stdout }}"
+    when: cluster_ready is failed
+
+  - name: Get worker nodes names
+    tags:
+      - 3_cleanup
+    ansible.builtin.shell: |
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} get nodes -l node-role.kubernetes.io/worker -o name | cut -f2 -d/
+    register: worker_nodes_output
+
+  - name: Set worker nodes names fact
+    tags:
+      - 3_cleanup
+    ansible.builtin.set_fact:
+      worker_nodes: "{{ worker_nodes_output.stdout_lines }}"
+
+  - name: Clean up local folders
+    tags:
+      - 3_cleanup
+    ansible.builtin.shell: |
+      export KUBECONFIG={{ kubeconfig }}
+      {{ oc_bin }} debug node/{{ item }} -T -- chroot /host sh -c "rm -rf /var/mmfs; rm -rf /var/adm/ras"
+    loop: "{{ worker_nodes }}"

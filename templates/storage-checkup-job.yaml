@@ -1,0 +1,42 @@
+---
+# Job to run the KubeVirt Storage Checkup
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: storage-checkup
+  namespace: "{{ storage_checkup_namespace }}"
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400  # Keep for 24 hours for result inspection
+  template:
+    spec:
+      serviceAccountName: storage-checkup-sa
+      restartPolicy: Never
+      containers:
+        - name: storage-checkup
+          image: "{{ storage_checkup_image | default('quay.io/kiagnose/kubevirt-storage-checkup:main') }}"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: CONFIGMAP_NAMESPACE
+              value: "{{ storage_checkup_namespace }}"
+            - name: CONFIGMAP_NAME
+              value: storage-checkup-config
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

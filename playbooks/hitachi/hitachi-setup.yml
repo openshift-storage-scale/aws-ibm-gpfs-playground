@@ -1,0 +1,34 @@
+---
+- name: Hitachi VSP One SDS Setup
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars_files:
+    - "{{ playbook_dir }}/../../hitachi.overrides.yml"
+
+  pre_tasks:
+    - name: Display setup information
+      debug:
+        msg: |
+          ==========================================
+          Hitachi VSP One SDS Setup
+          ==========================================
+          Array ID: {{ hitachi_array_id }}
+          Array Name: {{ hitachi_array_name }}
+          Version: {{ hitachi_sds_version }}
+          Node Count: {{ groups['all'] | length }}
+          ==========================================
+
+  roles:
+    - role: hitachi
+      tags:
+        - hitachi-setup
+
+  post_tasks:
+    - name: Display setup complete
+      run_once: yes
+      debug:
+        msg: |
+          ✅ Hitachi SDS setup complete!
+          Next step: make hitachi-pool-setup

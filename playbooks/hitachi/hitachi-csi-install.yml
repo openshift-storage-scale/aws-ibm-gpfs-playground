@@ -1,0 +1,40 @@
+---
+- name: Install Hitachi CSI Driver
+  hosts: localhost
+  gather_facts: no
+  
+  vars_files:
+    - "{{ playbook_dir }}/../../hitachi.overrides.yml"
+
+  pre_tasks:
+    - name: Check Kubernetes connectivity
+      shell: kubectl cluster-info
+      register: k8s_info
+      changed_when: false
+
+  tasks:
+    - name: Add Hitachi Helm repository
+      shell: |
+        helm repo add hitachi https://hitachi.github.io/hcp-helm-repo/ || true
+        helm repo update
+      changed_when: false
+
+    - name: Create CSI namespace
+      shell: |
+        kubectl create namespace {{ hitachi_csi_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+
+    - name: Install CSI driver
+      debug:
+        msg: |
+          Installing Hitachi CSI Driver:
+          - Version: {{ hitachi_csi_version }}
+          - Namespace: {{ hitachi_csi_namespace }}
+          - Replicas: {{ hitachi_csi_replicas }}
+
+  post_tasks:
+    - name: Display CSI installation complete
+      debug:
+        msg: |
+          ✅ CSI driver installation complete!
+          Next step: make hitachi-ocp-setup

@@ -114,6 +114,17 @@ dbperf_tar: "https://acksyn.org/stuff/hammerdb-tpcc-wrapper-scripts-kit.tar"
 virt_test_ns: "virt-test"
 virt_vm_name: "centos-db"
 
+# KubeVirt Storage Checkup Configuration
+# Reference: https://github.com/nadavleva/kubevirt-storage-checkup/blob/csireplicpg/docs/csi-tests.md
+storage_checkup_namespace: "storage-checkup"
+storage_checkup_storageclass: "ibm-test-sc"  # Storage class to test
+storage_checkup_timeout: "15m"  # Overall checkup timeout
+storage_checkup_vmi_timeout: "5m"  # Timeout for VMI operations
+storage_checkup_num_vms: "10"  # Number of concurrent VMs for stress test
+storage_checkup_skip_teardown: "never"  # Options: always, onfailure, never
+storage_checkup_wait_timeout: "20m"  # How long to wait for checkup completion
+storage_checkup_image: "quay.io/kiagnose/kubevirt-storage-checkup:main"
+
 oadp_ns: "openshift-adp"
 oadp_dpa_name: "dpa-s3"
 oadp_s3_owner: "s3-oadp-{{ ocp_cluster_name }}"

@@ -1,0 +1,18 @@
+---
+# ConfigMap for KubeVirt Storage Checkup configuration and results
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: storage-checkup-config
+  namespace: "{{ storage_checkup_namespace }}"
+data:
+  # Timeout for overall checkup (default: 10m)
+  spec.timeout: "{{ storage_checkup_timeout | default('15m') }}"
+  # Storage class to test (leave empty for default)
+  spec.param.storageClass: "{{ storage_checkup_storageclass | default('ibm-test-sc') }}"
+  # Timeout for VMI operations
+  spec.param.vmiTimeout: "{{ storage_checkup_vmi_timeout | default('5m') }}"
+  # Number of concurrent VMs to boot for stress test
+  spec.param.numOfVMs: "{{ storage_checkup_num_vms | default('10') }}"
+  # Skip teardown options: "always", "onfailure", "never"
+  spec.param.skipTeardown: "{{ storage_checkup_skip_teardown | default('never') }}"
