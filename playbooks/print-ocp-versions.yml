@@ -7,6 +7,8 @@
     ocp_url: https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/
     ocp_tmp_file: /tmp/ocp-versions.html
     major_versions:
+      - "4.21"
+      - "4.20"
       - "4.19"
   tasks:
     - name: Fetch URL

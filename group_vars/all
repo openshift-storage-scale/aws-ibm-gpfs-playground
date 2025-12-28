@@ -35,7 +35,9 @@ butane_arch: >-
 # Default version to be used, run "make ocp-versions" to see which are the latest
 # ones and download them with "make ocp-clients"
 # ocp_version: "4.19.0-ec.5"
-ocp_version: "4.19.1"
+# ocp_version: "4.19.1"
+# ocp_version: "4.20.1"
+ocp_version: "4.20.8"
 # For Dev-preview just use: "ocp-dev-preview", the rest of the URL segments remain the same.
 ocp_channel: "ocp"
 
