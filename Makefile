@@ -120,9 +120,7 @@ sds-block-destroy: $(LOGS_DIR) ## Destroy Hitachi SDS Block infrastructure only 
 hitachi-validation: ## Validate Hitachi SDS Block deployment
 	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/hitachi/hitachi-validation.yml
 
-.PHONY: hitachi-cleanup
-hitachi-cleanup: ## Clean up Hitachi SDS Block resources
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/hitachi/hitachi-cleanup.yml
+# Note: hitachi-cleanup target is defined in Makefile.hitachi with interactive confirmation
 
 # Include additional Hitachi targets from Makefile.hitachi
 -include Makefile.hitachi
