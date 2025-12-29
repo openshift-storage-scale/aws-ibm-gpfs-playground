@@ -10,10 +10,18 @@ LOGS_DIR := Logs
 TIMESTAMP := $(shell date +%Y%m%d_%H%M%S)
 LOG_FILE := $(LOGS_DIR)/install-$(TIMESTAMP).log
 
+# Always load overrides.yml if it exists
+OVERRIDES_FILE := $(wildcard ./overrides.yml)
+ifneq ($(OVERRIDES_FILE),)
+	OVERRIDES_ARGS = -e @./overrides.yml
+endif
+
 # When true we set the default to a BM instance for Power90
 BAREMETAL ?= false
 ifeq ($(BAREMETAL), true)
-	EXTRA_ARGS = -e @./vars/baremetal.yaml -e @./overrides.yml 
+	EXTRA_ARGS = -e @./vars/baremetal.yaml $(OVERRIDES_ARGS)
+else
+	EXTRA_ARGS = $(OVERRIDES_ARGS)
 endif
 
 # Setup logs directory
