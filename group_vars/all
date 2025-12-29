@@ -55,9 +55,9 @@ ocp_arch: "amd64"
 # Set enable_virtualization=true to use metal instances that support KVM
 # This is required for OpenShift Virtualization (CNV) and CSI certification VM tests
 enable_virtualization: false
-# Metal instance type for virtualization workloads (m5zn.metal is cost-optimized)
-# Alternative options: m5.metal (96 vCPU, 384 GiB), c5.metal, r5.metal
-ocp_worker_type_metal: "m5zn.metal"
+# Metal instance type for virtualization workloads (m5.metal is available in most regions)
+# Alternative options: c5.metal (96 vCPU, 192 GiB), r5.metal (96 vCPU, 768 GiB)
+ocp_worker_type_metal: "m5.metal"
 # Computed worker type: uses metal instance if virtualization is enabled
 ocp_worker_type_effective: "{{ ocp_worker_type_metal if enable_virtualization | default(false) else ocp_worker_type }}"
 
