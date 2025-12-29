@@ -15,15 +15,19 @@ This repository automates the deployment of an OpenShift cluster on AWS with IBM
 ## Tear up
 
 Here are the steps to deploy OCP with your choice of storage backend.
-****
+
 ### Available Deployment Options
 
-| Command | What It Installs | Duration |
-|---------|-----------------|----------|
-| `make install` | OCP + IBM GPFS (Spectrum Scale) | ~40-45 min |
-| `make install-hitachi` | OCP + Hitachi HSPC Operator | ~40-45 min |
-| `make install-**hitachi-with-sds` | OCP + Hitachi SDS Block + HSPC Operator | ~40-45 min (+ SDS setup) |
-**
+| Command | What It Installs | Instance Type | KVM Support | Duration |
+|---------|-----------------|---------------|-------------|----------|
+| `make install` | OCP + IBM GPFS (Spectrum Scale) | m5.2xlarge | ❌ No | ~40-45 min |
+| `make install-with-virtualization` | OCP + IBM GPFS + KVM | m5zn.metal | ✅ Yes | ~40-45 min |
+| `make install-hitachi` | OCP + Hitachi HSPC Operator | m5.2xlarge | ❌ No | ~40-45 min |
+| `make install-hitachi-with-sds` | OCP + Hitachi SDS Block + HSPC | m5.2xlarge | ❌ No | ~40-45 min |
+| `make install-hitachi-with-virtualization` | OCP + Hitachi + KVM | m5zn.metal | ✅ Yes | ~40-45 min |
+
+> **💡 Tip:** Use `-with-virtualization` targets when running CSI certification tests (Tests 8-17 require VM/KVM support).
+
 ### Prerequisites
 
 1. **Ansible dependencies**: 
@@ -383,18 +387,53 @@ oc get nodes -l kubevirt.io/schedulable=true -o wide
 oc get pods -A | grep virt-launcher
 ```
 
-### Region Availability
+### Region and Availability Zone Limitations
 
-Not all metal instances are available in all regions. Check availability:
+**⚠️ Important:** Metal instances (`m5zn.metal`) are NOT available in all regions or availability zones. This affects where you can deploy clusters with virtualization support.
+
+#### Known Supported Regions for m5zn.metal
+
+| Region | Availability Zones with m5zn.metal |
+|--------|-----------------------------------|
+| eu-north-1 (Stockholm) | eu-north-1a, eu-north-1b |
+| us-east-1 (N. Virginia) | us-east-1a, us-east-1b, us-east-1c, us-east-1d, us-east-1f |
+| us-west-2 (Oregon) | us-west-2a, us-west-2b, us-west-2c |
+| eu-west-1 (Ireland) | eu-west-1a, eu-west-1b, eu-west-1c |
+
+#### Check Availability in Your Region
 
 ```bash
+# Check which AZs have m5zn.metal in your region
 aws ec2 describe-instance-type-offerings \
   --location-type availability-zone \
   --filters Name=instance-type,Values=m5zn.metal \
   --region eu-north-1 \
   --query 'InstanceTypeOfferings[*].Location' \
   --output table
+
+# Example output:
+# ----------------------
+# |    Location         |
+# +---------------------+
+# |  eu-north-1a        |
+# |  eu-north-1b        |
+# ----------------------
 ```
+
+#### Configuring for Metal Instance Availability
+
+If deploying with virtualization, ensure your `overrides.yml` uses a supported AZ:
+
+```yaml
+# Make sure the AZ supports m5zn.metal
+ocp_az: "eu-north-1b"        # Must have m5zn.metal availability
+ocp_region: "eu-north-1"
+
+# This will be set automatically when using -with-virtualization targets
+# enable_virtualization: true
+```
+
+> **Note:** If deployment fails with "Insufficient capacity" errors, try a different AZ within the same region.
 
 ---
 

@@ -58,7 +58,7 @@ grafana: ## Configures the grafana bits
 
 .PHONY: iib
 iib: ## Install an iib on an OCP cluster on AWS
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_VARS) playbooks/common/iib.yml
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/common/iib.yml
 
 .PHONY: ebs-add
 ebs-add: ## Adds a new EBS volume via ebs-add.yml.
