@@ -75,7 +75,7 @@ hitachi-sds-install: hitachi-aws-setup  ## Install Hitachi VSP One SDS
 	@echo "Installing Hitachi VSP One SDS..."
 	@export KUBECONFIG=$$(pwd)/generated/auth/kubeconfig; \
 	ansible-playbook -i hosts \
-		playbooks/hitachi-setup.yml \
+		playbooks/hitachi/hitachi-setup.yml \
 		-e @hitachi.overrides.yml
 
 .PHONY: hitachi-pool-setup
@@ -83,7 +83,7 @@ hitachi-pool-setup:  ## Configure storage pools
 	@echo "Configuring Hitachi storage pools..."
 	@export KUBECONFIG=$$(pwd)/generated/auth/kubeconfig; \
 	ansible-playbook -i hosts \
-		playbooks/hitachi-storage.yml \
+		playbooks/hitachi/hitachi-storage.yml \
 		-e @hitachi.overrides.yml
 
 .PHONY: hitachi-csi-install
@@ -91,7 +91,7 @@ hitachi-csi-install:  ## Install Hitachi CSI driver
 	@echo "Installing Hitachi CSI driver..."
 	@export KUBECONFIG=$$(pwd)/generated/auth/kubeconfig; \
 	ansible-playbook -i hosts \
-		playbooks/hitachi-csi-install.yml \
+		playbooks/hitachi/hitachi-csi-install.yml \
 		-e @hitachi.overrides.yml
 
 .PHONY: hitachi-ocp-setup
@@ -108,7 +108,7 @@ hitachi-validate:  ## Validate installation
 	@echo "Validating Hitachi SDS installation..."
 	@export KUBECONFIG=$$(pwd)/generated/auth/kubeconfig; \
 	ansible-playbook -i hosts \
-		playbooks/hitachi-validation.yml \
+		playbooks/hitachi/hitachi-validation.yml \
 		-e @hitachi.overrides.yml
 
 .PHONY: hitachi-deploy-example
@@ -124,7 +124,7 @@ hitachi-deploy-example:  ## Deploy example workload
 hitachi-test:  ## Run tests
 	@echo "Running Hitachi replication tests..."
 	@export KUBECONFIG=$$(pwd)/generated/auth/kubeconfig; \
-	./scripts/hitachi-test-csi.sh
+	./scripts/validation/hitachi-test-csi.sh
 
 .PHONY: hitachi-status
 hitachi-status:  ## Show status
@@ -165,8 +165,8 @@ hitachi-deploy-operator:  ## Deploy Hitachi HSPC operator via Helm (with local c
 .PHONY: hitachi-download-charts
 hitachi-download-charts:  ## Download Hitachi Helm charts for offline use
 	@echo "Downloading Hitachi Helm charts..."
-	@chmod +x scripts/download-hitachi-charts.sh
-	@./scripts/download-hitachi-charts.sh $$(pwd)/charts 3.14.0
+	@chmod +x scripts/utilities/download-hitachi-charts.sh
+	@./scripts/utilities/download-hitachi-charts.sh $$(pwd)/charts 3.14.0
 	@echo "✅ Charts downloaded to: $$(pwd)/charts"
 	@echo "Log file: Logs/download-hitachi-charts-*.log"
 
@@ -181,8 +181,8 @@ hitachi-deploy-operator-disconnected:  ## Deploy operator for disconnected envir
 .PHONY: hitachi-check-network
 hitachi-check-network:  ## Check cluster network connectivity
 	@echo "Checking network connectivity..."
-	@chmod +x scripts/check-network-connectivity.sh
-	@./scripts/check-network-connectivity.sh
+	@chmod +x scripts/validation/check-network-connectivity.sh
+	@./scripts/validation/check-network-connectivity.sh
 	@echo "✅ Diagnostic logs: Logs/check-network-connectivity-*.log"
 
 .PHONY: hitachi-allocate-eip
@@ -198,5 +198,5 @@ hitachi-cleanup:  ## Cleanup Hitachi resources
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		ansible-playbook -i hosts \
-			playbooks/hitachi-cleanup.yml || true; \
+			playbooks/hitachi/hitachi-cleanup.yml || true; \
 	fi
