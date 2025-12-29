@@ -14,7 +14,12 @@ LOG_FILE := $(LOGS_DIR)/install-$(TIMESTAMP).log
 OVERRIDES_FILE := $(wildcard ./overrides.yml)
 ifneq ($(OVERRIDES_FILE),)
 	OVERRIDES_ARGS = -e @./overrides.yml
+else
+	OVERRIDES_ARGS =
 endif
+
+# Default KUBECONFIG path (can be overridden by environment or overrides.yml)
+KUBECONFIG_DEFAULT := $(HOME)/aws-gpfs-playground/ocp_install_files/auth/kubeconfig
 
 # When true we set the default to a BM instance for Power90
 BAREMETAL ?= false
@@ -24,10 +29,29 @@ else
 	EXTRA_ARGS = $(OVERRIDES_ARGS)
 endif
 
+# Helper function to get KUBECONFIG from overrides.yml or fall back to default
+define get_kubeconfig
+$(shell if [ -f overrides.yml ]; then \
+	grep kubeconfig overrides.yml 2>/dev/null | head -1 | awk -F'"' '{print $$2}' | envsubst 2>/dev/null || echo "$(KUBECONFIG_DEFAULT)"; \
+else \
+	echo "$(KUBECONFIG_DEFAULT)"; \
+fi)
+endef
+
 # Setup logs directory
 $(LOGS_DIR):
 	@mkdir -p $(LOGS_DIR)
 
+
+# Check for overrides.yml and warn if missing (only for targets that need it)
+.PHONY: check-overrides
+check-overrides:
+ifeq ($(OVERRIDES_FILE),)
+	@echo "⚠️  WARNING: overrides.yml not found"
+	@echo "   Some targets may not work correctly without configuration."
+	@echo "   See README.md for instructions on creating overrides.yml"
+	@echo ""
+endif
 
 ##@ Common Tasks
 .PHONY: help
@@ -177,12 +201,24 @@ storage-checkup-results: ## Get results from the last storage checkup run
 
 .PHONY: storage-checkup-logs
 storage-checkup-logs: ## Stream logs from the storage checkup job
-	@export KUBECONFIG=$$(grep kubeconfig overrides.yml | head -1 | awk -F'"' '{print $$2}' | envsubst) && \
+	@KUBECONFIG_PATH="$(call get_kubeconfig)"; \
+	if [ -z "$$KUBECONFIG_PATH" ] || [ ! -f "$$KUBECONFIG_PATH" ]; then \
+		echo "❌ Error: KUBECONFIG not found at $$KUBECONFIG_PATH"; \
+		echo "   Create overrides.yml with 'kubeconfig' path or set KUBECONFIG environment variable"; \
+		exit 1; \
+	fi; \
+	export KUBECONFIG="$$KUBECONFIG_PATH"; \
 	oc logs -f job/storage-checkup -n storage-checkup
 
 .PHONY: storage-checkup-cleanup
 storage-checkup-cleanup: ## Clean up storage checkup resources
-	@export KUBECONFIG=$$(grep kubeconfig overrides.yml | head -1 | awk -F'"' '{print $$2}' | envsubst) && \
+	@KUBECONFIG_PATH="$(call get_kubeconfig)"; \
+	if [ -z "$$KUBECONFIG_PATH" ] || [ ! -f "$$KUBECONFIG_PATH" ]; then \
+		echo "❌ Error: KUBECONFIG not found at $$KUBECONFIG_PATH"; \
+		echo "   Create overrides.yml with 'kubeconfig' path or set KUBECONFIG environment variable"; \
+		exit 1; \
+	fi; \
+	export KUBECONFIG="$$KUBECONFIG_PATH"; \
 	oc delete namespace storage-checkup --ignore-not-found=true && \
 	oc delete clusterrolebinding kubevirt-storage-checkup-clustereader storage-checkup-cluster-rolebinding --ignore-not-found=true && \
 	oc delete clusterrole storage-checkup-cluster-role --ignore-not-found=true
