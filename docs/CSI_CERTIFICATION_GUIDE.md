@@ -104,18 +104,20 @@ hitachi_sds_version: "1.13.0"
 
 Choose ONE of the following installation paths based on your storage backend:
 
+> **⚠️ Note:** These targets use metal instances (`m5zn.metal`) with KVM support, required for VM-based tests (8-17). See [cost note](#solution-use-metal-instances) above.
+
 ### Option A: IBM GPFS / Spectrum Scale
 
 ```bash
-# Full installation: OCP + GPFS + CNV + CSI Certification
-make install && make cnv-install && make storage-checkup
+# Full installation: OCP + GPFS + CNV + CSI Certification (with KVM support)
+make install-with-virtualization && make cnv-install && make storage-checkup
 ```
 
 ### Option B: Hitachi VSP One SDS
 
 ```bash
-# Full installation: OCP + Hitachi SDS + CNV + CSI Certification
-make install-hitachi-with-sds && make cnv-install && make storage-checkup
+# Full installation: OCP + Hitachi SDS + CNV + CSI Certification (with KVM support)
+make install-hitachi-with-virtualization && make cnv-install && make storage-checkup
 ```
 
 ---
@@ -127,14 +129,14 @@ make install-hitachi-with-sds && make cnv-install && make storage-checkup
 #### For IBM GPFS:
 
 ```bash
-# Install OCP cluster with IBM Spectrum Scale (GPFS)
-make install
+# Install OCP cluster with IBM Spectrum Scale (GPFS) and KVM support
+make install-with-virtualization
 ```
 
 This will:
 1. Download OCP installer and clients
 2. Create AWS infrastructure (VPC, subnets, etc.)
-3. Deploy OpenShift cluster (~45 minutes)
+3. Deploy OpenShift cluster with metal instances (~45 minutes)
 4. Configure security groups for GPFS ports
 5. Attach shared EBS volumes to workers
 6. Install IBM Fusion Access operator
@@ -143,13 +145,13 @@ This will:
 #### For Hitachi SDS:
 
 ```bash
-# Install OCP cluster with Hitachi VSP One SDS
-make install-hitachi-with-sds
+# Install OCP cluster with Hitachi VSP One SDS and KVM support
+make install-hitachi-with-virtualization
 ```
 
 This will:
 1. Deploy Hitachi VSP One SDS Block on AWS (optional)
-2. Create AWS infrastructure
+2. Create AWS infrastructure with metal instances
 3. Deploy OpenShift cluster
 4. Configure security groups for Hitachi ports (iSCSI, API)
 5. Install Hitachi HSPC operator via Helm
