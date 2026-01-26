@@ -120,17 +120,17 @@
       - "First LVDR node: {{ lvdr_json['items'][0].spec.nodeName }}"
       - "Discovered devices count: {{ lvdr_json['items'][0].status.discoveredDevices | length }}"
 
-- name: Set device path from first discovered device
+- name: Set device WWN from first discovered device
   tags:
     - 6_gpfs
   ansible.builtin.set_fact:
-    ebs_device_path: "{{ lvdr_json['items'][0].status.discoveredDevices[0].path }}"
+    ebs_device_wwn: "{{ lvdr_json['items'][0].status.discoveredDevices[0].WWN }}"
 
 - name: Debug device path
   tags:
     - 6_gpfs
   ansible.builtin.debug:
-    msg: "Using device path: {{ ebs_device_path }}"
+    msg: "Using device WWN: {{ ebs_device_wwn }}"
 
 - name: Template the FileSystemClaim
   tags:

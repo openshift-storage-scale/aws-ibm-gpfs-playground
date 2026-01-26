@@ -25,7 +25,7 @@
       "instance-state-name": "running"
 
     # --- Volume configuration ---
-    volume_name_tag: "gpfs-dedicated-ebs-volume"
+    volume_name_tag: "fsc-second-volume"
     volume_size: 150 # in GiB
     volume_type: "io2"
     multi_attach: true

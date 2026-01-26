@@ -8,5 +8,5 @@ metadata:
     app.kubernetes.io/managed-by: ansible
 spec:
   devices:
-    - "{{ ebs_device_path }}"
+    - "{{ ebs_device_wwn }}"
 
