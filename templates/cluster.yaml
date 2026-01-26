@@ -3,36 +3,28 @@ kind: Cluster
 metadata:
   name: ibm-spectrum-scale
 spec:
-  pmcollector:
-    nodeSelector:
-      scale.spectrum.ibm.com/daemon-selector: ""
   daemon:
-    nsdDevicesConfig:
-      bypassDiscovery: false
-      localDevicePaths:
-      - devicePath: /dev/disk/by-id/*
-        deviceType: generic
     clusterProfile:
-      controlSetxattrImmutableSELinux: "yes"
-      enforceFilesetQuotaOnRoot: "yes"
-      ignorePrefetchLUNCount: "yes"
-      initPrefetchBuffers: "128"
-      maxblocksize: 16M
-      prefetchPct: "25"
-      prefetchTimeout: "30"
+      cloudEnv: general
+      ignoreReplicaSpaceOnStat: 'yes'
+      ignoreReplicationForQuota: 'yes'
+      ignoreReplicationOnStatfs: 'yes'
+      readReplicaPolicy: local
+      traceGenSubDir: /var/mmfs/tmp/traces
+      tscCmdPortRange: 60000-61000
     nodeSelector:
-      scale.spectrum.ibm.com/daemon-selector: ""
-    roles:
-    - name: client
-      resources:
-        cpu: "2"
-        memory: 4Gi
-    - name: storage
-      resources:
-        cpu: "2"
-        memory: 8Gi
+      scale.spectrum.ibm.com/role: storage
+    nsdDevicesConfig:
+      bypassDiscovery: true
+    update:
+      paused: false
+  gui:
+    enableSessionIPCheck: true
   license:
     accept: true
     license: data-management
+  pmcollector:
+    nodeSelector:
+      scale.spectrum.ibm.com/role: storage
   # This is problematic on AWS
   # networkPolicy: {}
