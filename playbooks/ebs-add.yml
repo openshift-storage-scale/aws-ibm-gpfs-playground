@@ -1,5 +1,5 @@
 ---
-- name: Playbook to create and attach an EBS volume
+- name: Playbook to create and attach EBS volume(s)
   hosts: localhost
   gather_facts: false
   become: false
@@ -7,6 +7,10 @@
     # Use this to override stuff that won't be committed to git
     - ../overrides.yml
   vars:
+    # --- Number of volumes to create ---
+    # Passed from Makefile via NUM_VOLUMES (e.g. make ebs NUM_VOLUMES=3).
+    num_volumes: 1
+
     # --- Required variables ---
     # A list of EC2 instance IDs to attach the volume to.
     # Example:
@@ -24,7 +28,7 @@
       "tag:Name": "{{ ocp_cluster_name }}*worker*"
       "instance-state-name": "running"
 
-    # --- Volume configuration ---
+    # --- Volume configuration (same for all volumes) ---
     volume_name_tag: "fsc-second-volume"
     volume_size: 150 # in GiB
     volume_type: "io2"
@@ -34,7 +38,7 @@
     # The AZ for the volume. For single-attach volumes, this must match the instance's AZ.
     availability_zone: "{{ ocp_az | default(ocp_region + 'a') }}"
 
-    # List of potential device names to use for attachments. The playbook will pick the first unused one.
+    # List of potential device names to use for attachments. The playbook will pick the first unused one(s).
     potential_device_names:
       - /dev/sdf
       - /dev/sdg
@@ -81,33 +85,31 @@
       ansible.builtin.set_fact:
         available_device_names: "{{ potential_device_names | difference(used_device_names) }}"
 
-    - name: Fail if no available device name is found
+    - name: Fail if not enough available device names for requested volumes
       ansible.builtin.fail:
-        msg: |
-          Could not find an available device name. All potential names are in use: {{ used_device_names }}.
-          You can either extend the 'potential_device_names' list in 'overrides.yml' or remove an existing volume using the 'ebs-remove.yml' playbook.
-      when: available_device_names | length == 0
+        msg: >-
+          Not enough available device names. Requested {{ num_volumes }} volume(s)
+          but only {{ available_device_names | length }} device name(s) are available.
+          Used: {{ used_device_names }}. Available: {{ available_device_names }}.
+          You can extend 'potential_device_names' in overrides.yml or remove existing volumes with 'ebs-remove.yml'.
+      when: (available_device_names | length) < (num_volumes | int)
 
-    - name: Select the next available device name
+    - name: Select device names for requested volumes
       ansible.builtin.set_fact:
-        device_name: "{{ available_device_names | first }}"
+        selected_device_names: "{{ available_device_names[:num_volumes | int] }}"
 
-    - name: Debug the chosen device name
+    - name: Debug selected device names
       ansible.builtin.debug:
-        msg: "Automatically selected device name: {{ device_name }}"
+        msg: "Will create {{ num_volumes }} volume(s) using device names: {{ selected_device_names }}"
 
     - name: Fail if trying to attach a single-attach volume to multiple instances
       ansible.builtin.fail:
         msg: "Cannot attach a single-attach volume to multiple instances. Set multi_attach: true or provide only one instance ID."
-      when: not multi_attach and (instance_ids | length > 1)
+      when: not multi_attach and (ec2_instances.instances | length > 1)
 
     - name: Set owner fact from the first worker's tag
       ansible.builtin.set_fact:
         owner_tag: "{{ ec2_instances.instances[0].tags.Owner | default('unknown') }}"
-
-    - name: Debug Owner tag
-      ansible.builtin.debug:
-        msg: "Will use the following owner tag: {{ owner_tag }}"
 
     - name: Set instance IDs from filter results
       ansible.builtin.set_fact:
@@ -116,34 +118,10 @@
 
     - name: Debug instance IDs
       ansible.builtin.debug:
-        msg: "Will attach a new volume to the following instances: {{ instance_ids }}"
+        msg: "Will attach {{ num_volumes }} new volume(s) to the following {{ instance_ids | length }} instance(s): {{ instance_ids }}"
 
-    - name: Create EBS volume
-      amazon.aws.ec2_vol:
-        profile: "{{ aws_profile }}"
-        region: "{{ ocp_region }}"
-        availability_zone: "{{ availability_zone }}"
-        volume_size: "{{ volume_size }}"
-        volume_type: "{{ volume_type }}"
-        iops: "{{ iops | default(omit) }}"
-        throughput: "{{ throughput | default(omit) }}"
-        multi_attach: "{{ multi_attach }}"
-        tags:
-          Name: "{{ volume_name_tag }}"
-          Owner: "{{ owner_tag }}"
-      register: ebs_volume
-      failed_when: ebs_volume.volume_id is not defined
-
-    - name: Debug created volume
-      ansible.builtin.debug:
-        msg: "Created volume {{ ebs_volume.volume_id }}"
-
-    - name: Attach EBS volume to instances
-      amazon.aws.ec2_vol:
-        profile: "{{ aws_profile }}"
-        region: "{{ ocp_region }}"
-        instance: "{{ item }}"
-        id: "{{ ebs_volume.volume_id }}"
-        device_name: "{{ device_name }}"
-        state: present
-      loop: "{{ instance_ids }}"
+    - name: Create and attach each volume
+      ansible.builtin.include_tasks: tasks/ebs-create-and-attach-volume.yml
+      loop: "{{ range(num_volumes | int) | list }}"
+      loop_control:
+        loop_var: volume_index
