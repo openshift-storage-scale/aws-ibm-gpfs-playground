@@ -4,6 +4,7 @@ ifdef TAGS
 endif
 
 EXTRA_VARS ?=
+NUM_VOLUMES ?= 1
 
 # When true we set the default to a BM instance for Power90
 BAREMETAL ?= false
@@ -92,9 +93,12 @@ list-tags: ## Lists all tags in the install playbook
 ansible-deps: ## Install Ansible dependencies
 	ansible-galaxy collection install -r requirements.yml
 
+.PHONY: ebs
+ebs: ebs-add ## Alias for ebs-add
+
 .PHONY: ebs-add
-ebs-add: ## Adds a new EBS volume via ebs-add.yml.
-	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) playbooks/ebs-add.yml
+ebs-add: ## Adds EBS volume(s) to worker nodes. Use NUM_VOLUMES=N to create multiple (e.g. make ebs NUM_VOLUMES=3).
+	ansible-playbook -i hosts $(TAGS_STRING) $(EXTRA_ARGS) $(EXTRA_VARS) -e "num_volumes=$(NUM_VOLUMES)" playbooks/ebs-add.yml
 
 .PHONY: ebs-remove
 ebs-remove: ## Removes an existing EBS volume via ebs-remove.yml.

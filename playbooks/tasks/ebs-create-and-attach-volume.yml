@@ -1,0 +1,49 @@
+---
+# Included by ebs-add.yml — creates a single EBS volume and attaches it to all
+# discovered instances.  Called once per volume_index (0-based).
+#
+# Expected variables from the caller:
+#   volume_index, selected_device_names, volume_name_tag, num_volumes,
+#   volume_size, volume_type, iops, throughput, multi_attach,
+#   availability_zone, owner_tag, instance_ids, aws_profile, ocp_region
+
+- name: "Volume {{ volume_index + 1 }}/{{ num_volumes }} - Set volume name and device"
+  ansible.builtin.set_fact:
+    current_volume_name: "{{ volume_name_tag }}{% if (num_volumes | int) > 1 %}-{{ volume_index + 1 }}{% endif %}"
+    current_device_name: "{{ selected_device_names[volume_index] }}"
+
+- name: "Volume {{ volume_index + 1 }}/{{ num_volumes }} - Creating '{{ current_volume_name }}' on {{ current_device_name }}"
+  ansible.builtin.debug:
+    msg: "Creating volume '{{ current_volume_name }}' ({{ volume_size }} GiB, {{ volume_type }}) on device {{ current_device_name }}"
+
+- name: "Volume {{ volume_index + 1 }}/{{ num_volumes }} - Create EBS volume"
+  amazon.aws.ec2_vol:
+    profile: "{{ aws_profile }}"
+    region: "{{ ocp_region }}"
+    availability_zone: "{{ availability_zone }}"
+    volume_size: "{{ volume_size }}"
+    volume_type: "{{ volume_type }}"
+    iops: "{{ iops | default(omit) }}"
+    throughput: "{{ throughput | default(omit) }}"
+    multi_attach: "{{ multi_attach }}"
+    tags:
+      Name: "{{ current_volume_name }}"
+      Owner: "{{ owner_tag }}"
+  register: ebs_volume
+  failed_when: ebs_volume.volume_id is not defined
+
+- name: "Volume {{ volume_index + 1 }}/{{ num_volumes }} - Created {{ ebs_volume.volume_id }}"
+  ansible.builtin.debug:
+    msg: "Created volume {{ ebs_volume.volume_id }} ({{ current_volume_name }})"
+
+- name: "Volume {{ volume_index + 1 }}/{{ num_volumes }} - Attach to instances"
+  amazon.aws.ec2_vol:
+    profile: "{{ aws_profile }}"
+    region: "{{ ocp_region }}"
+    instance: "{{ item }}"
+    id: "{{ ebs_volume.volume_id }}"
+    device_name: "{{ current_device_name }}"
+    state: present
+  loop: "{{ instance_ids }}"
+  loop_control:
+    label: "{{ ebs_volume.volume_id }} -> {{ item }} ({{ current_device_name }})"
